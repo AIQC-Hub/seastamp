@@ -19,9 +19,13 @@
 #   gebco       GEBCO sub-ice bathymetry grid (BODC), for `depth`. One NetCDF
 #               inside a zip. Large: several GB, resumes on re-run.
 #   iho         IHO Sea Areas v3 (Marine Regions), for `sea`. The download
-#               sits behind the marineregions.org form (user statistics plus
-#               CC-BY acceptance), so it needs your --mr-name, --mr-email,
-#               and --mr-country; downloading means you accept the license.
+#               sits behind the marineregions.org form, which collects user
+#               statistics and requires accepting the dataset licence
+#               (CC BY-NC-SA 4.0). Every field it marks required has to be
+#               supplied: --mr-name, --mr-org, --mr-email, --mr-country,
+#               --mr-category, and --mr-purpose. The last two have defaults.
+#               Running this download submits the form and accepts the licence,
+#               so the values are shown for confirmation before anything starts.
 #   countries   Natural Earth 10m admin 0 countries, for `place --countries`.
 #   lau         Eurostat GISCO LAU boundaries, for `place --municipalities`.
 #               The 4326 (lon/lat) shapefile is unpacked from the bundle;
@@ -32,9 +36,18 @@
 #   --gebco-year N    GEBCO grid year  (default: 2024)
 #   --lau-year N      GISCO LAU reference year  (default: 2021)
 #   --mr-name STR     your name, for the Marine Regions form (iho only)
+#   --mr-org STR      your organisation, for the form (iho only)
 #   --mr-email STR    your email, for the Marine Regions form (iho only)
-#   --mr-country STR  your country, in English, for the form (iho only)
-#   --mr-org STR      your organisation, for the form (optional)
+#   --mr-country STR  your country, in English, as the form spells it (iho only)
+#   --mr-category STR user category (default: academia). One of:
+#                       academia, industry, government, civil society
+#   --mr-purpose STR  purpose (default: Research). One of: Conservation,
+#                       Data exploration & testing, Education & workshops,
+#                       Fisheries, Policy & Marine Spatial Planning,
+#                       Mapping & visualisation,
+#                       Maritime transport & cruise planning,
+#                       Industry & offshore activities, Research, GIS Analysis,
+#                       Personal information, Other
 #   --force           Re-download files that already exist (default: an
 #                     existing archive is kept and only unpacked again).
 #   --sequential      Download datasets one at a time (default: selected
@@ -60,6 +73,19 @@ MR_NAME=
 MR_EMAIL=
 MR_COUNTRY=
 MR_ORG=
+MR_CATEGORY=academia
+MR_PURPOSE=Research
+
+# The form's two dropdowns accept only these values, spelled exactly like this;
+# anything else is rejected with an HTML page instead of a zip. Scraped from
+# https://www.marineregions.org/download_file.php?name=World_Seas_IHO_v3.zip
+MR_CATEGORIES=("academia" "industry" "government" "civil society")
+MR_PURPOSES=(
+  "Conservation" "Data exploration & testing" "Education & workshops"
+  "Fisheries" "Policy & Marine Spatial Planning" "Mapping & visualisation"
+  "Maritime transport & cruise planning" "Industry & offshore activities"
+  "Research" "GIS Analysis" "Personal information" "Other"
+)
 FORCE=0
 ASSUME_YES=0
 SEQUENTIAL=0
@@ -83,6 +109,10 @@ while [[ $# -gt 0 ]]; do
     --mr-country=*) MR_COUNTRY="${1#*=}"; shift ;;
     --mr-org)       MR_ORG="${2:?--mr-org requires a value}"; shift 2 ;;
     --mr-org=*)     MR_ORG="${1#*=}"; shift ;;
+    --mr-category)  MR_CATEGORY="${2:?--mr-category requires a value}"; shift 2 ;;
+    --mr-category=*) MR_CATEGORY="${1#*=}"; shift ;;
+    --mr-purpose)   MR_PURPOSE="${2:?--mr-purpose requires a value}"; shift 2 ;;
+    --mr-purpose=*) MR_PURPOSE="${1#*=}"; shift ;;
     --force)        FORCE=1; shift ;;
     --sequential)   SEQUENTIAL=1; shift ;;
     -y|--yes)       ASSUME_YES=1; shift ;;
@@ -107,6 +137,45 @@ log() {
 }
 run() { log "RUN: $*"; "$@"; }
 
+# Is <needle> one of the remaining arguments? Used for the form's dropdowns,
+# whose values contain spaces and ampersands, so a substring match would lie.
+in_list() {  # <needle> <candidate...>
+  local needle="$1"; shift
+  local c
+  for c in "$@"; do [[ "$c" == "$needle" ]] && return 0; done
+  return 1
+}
+
+# Check the Marine Regions form values before anything is downloaded, so a typo
+# in a dropdown fails immediately instead of after the multi-GB GEBCO grid.
+# Every field the form marks required is required here too.
+check_mr() {
+  local missing=()
+  [[ -z "$MR_NAME"    ]] && missing+=(--mr-name)
+  [[ -z "$MR_ORG"     ]] && missing+=(--mr-org)
+  [[ -z "$MR_EMAIL"   ]] && missing+=(--mr-email)
+  [[ -z "$MR_COUNTRY" ]] && missing+=(--mr-country)
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    log "the Marine Regions form requires: ${missing[*]}"
+    log "see -h/--help, or fetch the iho zip by hand from"
+    log "https://www.marineregions.org/downloads.php"
+    return 1
+  fi
+  if ! in_list "$MR_CATEGORY" "${MR_CATEGORIES[@]}"; then
+    log "invalid --mr-category: $MR_CATEGORY"
+    local c
+    for c in "${MR_CATEGORIES[@]}"; do log "  valid: $c"; done
+    return 1
+  fi
+  if ! in_list "$MR_PURPOSE" "${MR_PURPOSES[@]}"; then
+    log "invalid --mr-purpose: $MR_PURPOSE"
+    local p
+    for p in "${MR_PURPOSES[@]}"; do log "  valid: $p"; done
+    return 1
+  fi
+  return 0
+}
+
 # Print the resolved configuration, then ask for confirmation unless -y/--yes was
 # given. In a non-interactive shell without -y there is nothing to read, so abort
 # with a hint rather than hang.
@@ -122,6 +191,18 @@ show_config() {  # <cmd> <dataset...>
     echo "  gebco    : $GEBCO_YEAR"
     echo "  lau      : $LAU_YEAR"
     echo "  mode     : $mode"
+    if in_list iho "$@"; then
+      # These are submitted to a third party, so show them in full and say what
+      # accepting means, before anything is sent.
+      echo "Marine Regions form (iho), submitted on your behalf:"
+      echo "  name     : $MR_NAME"
+      echo "  org      : $MR_ORG"
+      echo "  email    : $MR_EMAIL"
+      echo "  country  : $MR_COUNTRY"
+      echo "  category : $MR_CATEGORY"
+      echo "  purpose  : $MR_PURPOSE"
+      echo "  licence  : accepting CC BY-NC-SA 4.0 (non-commercial, share-alike)"
+    fi
     echo "Run with -h/--help to see all options."
   } >&2
 }
@@ -186,15 +267,12 @@ download_iho() {
   mkdir -p "$dir"
   if [[ ! -e "$dir/$zip" || "$FORCE" == 1 ]]; then
     # marineregions.org gates downloads behind a short form: user statistics
-    # (name, email, country are its required fields) plus CC-BY acceptance.
-    # Submit it non-interactively with the details given on the command line;
-    # running this download means accepting the CC-BY license.
-    if [[ -z "$MR_NAME" || -z "$MR_EMAIL" || -z "$MR_COUNTRY" ]]; then
-      log "the Marine Regions form needs your details: pass --mr-name,"
-      log "--mr-email, and --mr-country (see --help), or fetch $zip manually"
-      log "from https://www.marineregions.org/downloads.php into $dir/"
-      return 1
-    fi
+    # (name, organisation, email, country, user category, and purpose are all
+    # required) plus acceptance of the dataset licence. Submit it
+    # non-interactively with the details given on the command line; running this
+    # download means accepting CC BY-NC-SA 4.0. check_mr has already validated
+    # them and show_config has displayed them for confirmation.
+    check_mr || return 1
     # The form page carries a hidden anti-bot field that must be posted back
     # empty; scrape its per-page name first.
     local honeypot
@@ -205,8 +283,8 @@ download_iho() {
       --data-urlencode "organisation=$MR_ORG" \
       --data-urlencode "email=$MR_EMAIL" \
       --data-urlencode "country=$MR_COUNTRY" \
-      --data-urlencode "user_category=academia" \
-      --data-urlencode "purpose_category=Research" \
+      --data-urlencode "user_category=$MR_CATEGORY" \
+      --data-urlencode "purpose_category=$MR_PURPOSE" \
       --data-urlencode "agree=1" \
       ${honeypot:+--data-urlencode "$honeypot="}
     # A rejected form submission returns an HTML page, not a zip: fail loudly
@@ -313,6 +391,12 @@ main() {
   for d in "${datasets[@]}"; do
     is_dataset "$d" || { echo "Unknown dataset: $d" >&2; usage; return 1; }
   done
+
+  # Validate the form values before the summary, so what is shown is what will
+  # actually be sent, and a bad value costs nothing.
+  if in_list iho "${datasets[@]}"; then
+    check_mr || return 1
+  fi
 
   show_config "$cmd" "${datasets[@]}"
   confirm || { log "aborted."; return 1; }

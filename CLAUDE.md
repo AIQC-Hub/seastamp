@@ -22,7 +22,8 @@ as each algorithm needs them.
 Input and output can be Parquet (default), CSV, TSV, and the gzip variants
 `csv.gz` / `tsv.gz`. Every module reads the input, reduces it to unique locations
 with rounded coordinates (3 decimals by default), enriches those unique locations
-in parallel, then joins the results back onto every input row.
+in parallel (`depth` excepted, see HDF5 threading), then joins the results back
+onto every input row.
 
 ## Documentation style
 
@@ -36,10 +37,12 @@ The scaffold (CLI, config resolution, multi-format I/O, and the shared pipeline
 `pipeline::run_module`) and all five modules are implemented and tested:
 
 - `depth` (`src/modules/depth.rs`): GEBCO NetCDF grid lookup keyed on `netcdf`
-  (linking system HDF5). Nearest-cell by arithmetic, serialized reads under a
-  mutex (the system HDF5 serial build is not thread safe), per-thread HDF5
-  diagnostic silencing, and a `tests/depth.rs` integration test that builds a
-  small synthetic grid.
+  (linking system HDF5). Nearest-cell by arithmetic, HDF5 diagnostic silencing,
+  and a `tests/depth.rs` integration test that builds a small synthetic grid.
+  Enrichment is single-threaded here, unlike every other module: see the HDF5
+  threading rule below. `--on-land` adds a boolean column flagging elevations at
+  or above sea level, read off the raw elevation so `--positive` does not change
+  its meaning.
 - `coast` (`src/modules/coast.rs`): GSHHG L1 shoreline segments cropped to the
   region plus a 5 degree margin, projected through the region LAEA, indexed in
   an `rstar` R-tree; nearest-segment planar distance in km or m. Segments are
@@ -50,7 +53,13 @@ The scaffold (CLI, config resolution, multi-format I/O, and the shared pipeline
 - `place` (`src/modules/place.rs`): Natural Earth countries plus optional GISCO
   LAU municipalities, both resolved containment-first with a nearest-boundary
   fallback; DBF attribute fields auto-detected from candidate lists (the
-  Natural Earth `-99` code placeholder reads as missing).
+  Natural Earth `-99` code placeholder reads as missing). With
+  `--municipalities` it also appends `municipality_dist` (0 for a containment,
+  else the boundary distance via `PolygonIndex::locate_with_dist`), and
+  `--max-municipality-dist` drops matches past a limit, clearing the name and
+  distance together. That cutoff exists because GISCO LAU is Europe-only, so an
+  unbounded nearest match assigns a distant municipality to any site outside the
+  coverage.
 - `nearest` (`src/modules/nearest.rs`): nearest point of a second table the
   caller passes with `--to` (not a bundled dataset). Reference points are mapped
   to unit-sphere `(x, y, z)` and indexed in a 3D `rstar` R-tree; the nearest by
@@ -93,11 +102,14 @@ Single-stage `clap` dispatch:
    region box / projection center is `preset/default < config file < CLI flag`.
 
 **Pipeline** (`src/pipeline.rs`): the `Enricher` trait is the entire per-module
-surface. A module declares its `outputs()` (column name + `Float`/`Text`) and
-computes `enrich(lon, lat) -> Vec<Value>`. `run_module` does the rest: extract
+surface. A module declares its `outputs()` (column name + `Float`/`Text`/`Bool`)
+and computes `enrich(lon, lat) -> Vec<Value>`. It may also override
+`parallel() -> false` to be enriched on one thread; only `depth` does, for the
+HDF5 reason below. `run_module` does the rest: extract
 `lon`/`lat` (cast to f64, nulls to NaN), round and de-duplicate into unique
 locations (integer-scaled keys, so the join never compares floats), enrich the
-unique set with rayon, expand the results back to one value per input row, hstack
+unique set with rayon (or sequentially when the module opts out), expand the
+results back to one value per input row, hstack
 the new columns, and write. NaN coordinates get no key and therefore null output.
 An output column already present in the input is an error (caught before
 enrichment) unless `--overwrite` is set, which replaces it in place, keeping its
@@ -124,6 +136,37 @@ table for `nearest`) and options and calls `run_module`. Shared helpers:
 input format, so the output format defaults to the input's) and `shp_polygons`
 (whole-polygon shapefile read used by `sea` and `place`).
 
+## HDF5 threading (depth)
+
+**Never enrich `depth` from more than one thread.** HDF5 is commonly built
+without thread safety, and such a build cannot be entered from several threads
+*at all*. Mutual exclusion is not sufficient: locking so the calls never overlap
+still crashes, because the library keeps state that assumes a single thread of
+execution. This is why `DepthEnricher` returns `parallel() -> false`.
+
+It cost a user a hard crash to find (a SIGSEGV on a 397 point input, where a 3
+point input got through), so treat it as settled rather than something to
+re-litigate:
+
+- The `netcdf` crate already takes an exclusive process-wide lock around every
+  netcdf-c call, so ordinary reads never overlap on their own. The mutex in
+  `DepthEnricher` is belt and braces, kept because
+  `silence_hdf5_diagnostics` calls `H5Eset_auto2` straight into HDF5, past that
+  lock. Keep that call under the mutex.
+- It only reproduces against a serial HDF5. A distribution `libhdf5-dev` is
+  usually built thread-safe (Ubuntu's is), so the bug is invisible there and CI
+  cannot catch it. The prebuilt release binaries are the vulnerable ones, since
+  `static-netcdf` vendors HDF5 through cmake with thread safety off. Check any
+  change to this area with:
+
+  ```bash
+  cargo test --features static-netcdf --test depth
+  ```
+
+- All the depth cases live in one `#[test]` on purpose. The harness gives each
+  `#[test]` its own thread, which is by itself enough to trip a serial HDF5, so
+  splitting them makes the suite abort at random even when the library is sound.
+
 ## Data sources (not bundled)
 
 The reference datasets are large and are not committed or shipped. A module takes
@@ -146,9 +189,15 @@ each, matching the README example paths. Caveats baked into it: the GEBCO grid
 is multi-GB and resumes an interrupted download; the GISCO LAU bundle nests one
 zip per projection and only the EPSG 4326 (lon/lat) layer is unpacked, since
 the modules expect lon/lat; the Marine Regions (IHO) download submits the
-site's statistics form, so it requires `--mr-name` / `--mr-email` /
-`--mr-country` (and posts back the form's hidden anti-bot field empty), and it
-verifies the response is a zip, failing loudly when the form rejects it.
+site's statistics form, so it requires every field the form marks required
+(`--mr-name` / `--mr-org` / `--mr-email` / `--mr-country`, plus
+`--mr-category` and `--mr-purpose`, which default to `academia` and `Research`),
+posts back the form's hidden anti-bot field empty, and verifies the response is
+a zip, failing loudly when the form rejects it. The two dropdowns accept only
+fixed values, held in `MR_CATEGORIES` / `MR_PURPOSES` and checked by `check_mr`
+before any download starts; re-scrape them from the form page if Marine Regions
+changes them. Because the details go to a third party and the download accepts
+CC BY-NC-SA 4.0, `show_config` prints them for confirmation first.
 
 `scripts/enrich.sh` (same ctddump-style bash: header doubles as `--help`,
 `log`/`run` tracing) chains several modules over one input, each reading the
@@ -181,9 +230,43 @@ before implementing it.
 
 ## Git Workflow
 
-Match ctddump: permanent `main` (stable) and `develop` (integration) branches;
-day-to-day work on `develop`. Commit and push only when the user asks. Commit
-messages end with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+Match ctddump: `git flow` with permanent `main` (stable) and `develop`
+(integration) branches; day-to-day work on `develop`. Commit and push only when
+the user asks. Commit messages end with
+`Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+
+Branch prefixes are the git-flow defaults (`feature/`, `bugfix/`, `release/`,
+`hotfix/`, `support/`) with `v` as the version tag prefix, so a feature branch
+is `feature/coast` and the 0.10.0 release tag is `v0.10.0`.
+
+These settings live in `.git/config`, which git never tracks, so they do not
+survive a fresh clone and cannot be committed. Re-create them in a new clone
+with the non-interactive init (`-d` takes the defaults, which already match):
+
+```bash
+git flow init -d
+```
+
+Beware that `.git/config` also records `gitflow.path.hooks` as an absolute
+path. Renaming or moving the working directory leaves it pointing at the old
+location, and it has to be repointed by hand:
+
+```bash
+git config --local gitflow.path.hooks "$(git rev-parse --absolute-git-dir)/hooks"
+```
+
+A release goes out as its own branch, which is what produces the paired
+`Merge branch 'release/X'` and `Merge tag 'vX' into develop` commits in the log:
+
+```bash
+git flow release start 0.10.0
+# stamp the CHANGELOG section, bump the version in Cargo.toml and Cargo.lock
+git flow release finish 0.10.0    # merges to main, tags vX, merges back to develop
+git push origin main develop --tags
+```
+
+Pushing the tag is what triggers `publish.yml`, so push it only when the
+release is meant to go public (see CI and releases below).
 
 ## CI and releases
 
