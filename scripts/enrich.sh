@@ -35,7 +35,9 @@
 #   --lon-col NAME        longitude column   (default: longitude)
 #   --lat-col NAME        latitude column    (default: latitude)
 #   --decimals N          rounding before de-duplication  (default: 3)
-#   -t, --threads N       worker threads
+#   -t, --threads N       worker threads. depth ignores it for the grid lookup,
+#                         which always runs on one thread (HDF5 is often built
+#                         without thread safety)
 #   --in-format FMT       format of <input> (default: inferred from extension)
 #
 # Other options:

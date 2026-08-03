@@ -17,6 +17,10 @@ pub enum Commands {
     /// Distance to the nearest coast (GSHHG shorelines)
     Coast(CoastArgs),
     /// Bathymetric depth at each point (GEBCO grid)
+    #[command(after_help = "The grid lookup always runs on one thread, so --threads \
+does not speed it up. HDF5, which the NetCDF reader sits on, is often built \
+without thread safety, and such a build cannot be read from several threads at \
+once. Nothing is lost: the reads were serialized anyway.")]
     Depth(DepthArgs),
     /// Sea / ocean name at each point (IHO Sea Areas)
     Sea(SeaArgs),
