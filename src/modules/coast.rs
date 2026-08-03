@@ -7,7 +7,8 @@
 //!   3. Per location: project the point and take the minimum planar distance to
 //!      the nearest segment (Snyder LAEA meters), converted to the chosen unit.
 //!
-//! This mirrors the reference R workflow's projected-distance approach.
+//! Distances are therefore planar in that projection, which is accurate at
+//! regional scale and degrades with distance from the projection center.
 //!
 //! Cropping: only segments whose lon/lat bounding box intersects the region box
 //! (expanded by a margin) are indexed. Whole polygons are never clipped, so no

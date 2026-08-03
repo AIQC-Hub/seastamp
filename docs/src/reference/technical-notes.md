@@ -18,10 +18,10 @@ system libraries. Two projections do the work:
 - A spherical **LAEA** (Lambert Azimuthal Equal-Area) centered on the region,
   used for planar distances by `coast` (and for the nearest-boundary fallbacks
   in `sea` and `place`). Planar distance in that projection is accurate for the
-  regional-scale nearest-feature query. The reference R workflow used EPSG:3035
-  LAEA for the same reason. A single sphere (authalic radius) is used rather
-  than the GRS80 ellipsoid; the error is well under coastline resolution for
-  regional work. Sub-meter accuracy, if ever needed, means an ellipsoidal LAEA.
+  regional-scale nearest-feature query. A single sphere (authalic radius) is
+  used rather than the GRS80 ellipsoid; the error is well under coastline
+  resolution for regional work. Sub-meter accuracy, if ever needed, means an
+  ellipsoidal LAEA.
 - The **unit sphere**, used by `nearest`. Reference points become
   `(x, y, z)` vectors on the unit sphere; nearest-by-chord equals
   nearest-by-great-circle, and the squared chord converts back to an exact
@@ -30,6 +30,71 @@ system libraries. Two projections do the work:
 
 The `haversine_m` great-circle distance is used for reference and to refine
 index candidates.
+
+## How distances are calculated
+
+Three commands report a distance, and they do not all compute it the same way.
+Which method a command uses decides how far from the projection center its
+numbers stay trustworthy.
+
+| Column | Command | Method | Accurate |
+|--------|---------|--------|----------|
+| `dist_to_coast` | `coast` | Planar, in the region LAEA | Regionally, near the projection center |
+| `municipality_dist` | `place` | Planar, in the region LAEA | Regionally, near the projection center |
+| `nearest_dist` | `nearest` | Great circle, on the unit sphere | Everywhere on the globe |
+
+All three compute in meters and divide by 1000 for the `km` default; `--unit m`
+reports meters unchanged.
+
+### Planar, in the region LAEA
+
+`coast` and `place` project the query point and the reference geometry into the
+region's LAEA plane and take an ordinary Euclidean distance there:
+
+1. Project the point to `(x, y)` meters with the spherical LAEA centered on
+   `--proj-lon0` / `--proj-lat0` (a `--region` preset sets these).
+2. Ask the R-tree of projected segments for the nearest one.
+3. Take the point-to-segment distance, which is a straight line in that plane.
+
+For `coast` the segments are the shoreline; for `place` they are municipality
+boundaries, and the distance is `0` when the point falls inside the polygon
+rather than beside it.
+
+Because the projection is centered on the region, the distortion is small near
+that center and grows with distance from it. Planar distance tracks the true
+great-circle distance to well under 1% for points a few tens of km apart in the
+middle of a region, which is the case these commands are built for. **Set the
+region to match your data**, since points far outside it get progressively worse
+numbers rather than an error.
+
+The projection is spherical, using the authalic radius `6371007.181` m, and the
+formulas are the spherical LAEA case from Snyder, *Map Projections: A Working
+Manual* (USGS Professional Paper 1395).
+
+### Great circle, on the unit sphere
+
+`nearest` deliberately does not use the projection, because the two tables it
+compares can be anywhere and need not share a region. Instead:
+
+1. Map every reference point to an `(x, y, z)` vector on the unit sphere, and
+   index those in a 3D R-tree.
+2. Ask for the nearest by Euclidean **chord** distance. The chord grows
+   monotonically with the central angle, so the nearest by chord is exactly the
+   nearest by great-circle distance.
+3. Convert the squared chord back to meters with `d = 2R asin(chord / 2)`, using
+   the mean radius `6371008.8` m.
+
+The result is exact anywhere on the globe, so `nearest` takes no region or
+projection center at all. It agrees with `haversine_m` to within 1e-9 relative
+even across a third of the Earth.
+
+### Limits
+
+Every distance here is spherical, so none of it is ellipsoidal-accurate. Expect
+agreement with an ellipsoidal calculation at the level of a few parts in a
+thousand, which is far below the resolution of the shoreline and boundary data
+being measured against. Sub-meter work means replacing the spherical LAEA with an
+ellipsoidal one.
 
 ## Spatial indexes
 

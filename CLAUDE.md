@@ -123,8 +123,8 @@ writes use `set_parallel(false)` for the same reason as ctddump.
 
 **Geometry** (`src/geo/`): pure Rust, no PROJ / GDAL, so downstream projects need
 no extra system libraries. `Laea` is a spherical Lambert Azimuthal Equal-Area
-projection centered on the region (the reference R workflow used EPSG:3035 LAEA
-for distances); planar distance in that projection is accurate for the
+projection centered on the region, giving distances the way a planar CRS such as
+EPSG:3035 would; planar distance in that projection is accurate for the
 nearest-coast query at regional scale. `haversine_m` is the great-circle distance
 used for reference and for refining index candidates. Sub-meter accuracy, if ever
 needed, means an ellipsoidal LAEA in place of the spherical one.
@@ -215,9 +215,9 @@ The default region is the whole globe. Other regions come from `--region`
 presets (`global`, `baltic`, `norway`, `arctic`, `atlantic`, `europe`,
 `mediterranean`) or explicit `--min-lon/--max-lon/--min-lat/--max-lat` and
 `--proj-lon0/--proj-lat0`.
-The Baltic box (8, 31, 53, 66) matches the R examples and is the `baltic` preset.
+The Baltic box (8, 31, 53, 66) is the `baltic` preset.
 Add presets in `config::preset_bbox`. The `place` municipality lookup will also
-need a per-region country list (the R snippet's ISO3 set).
+need a per-region country list of ISO3 codes.
 
 ## Streaming (future)
 

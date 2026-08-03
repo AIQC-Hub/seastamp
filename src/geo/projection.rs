@@ -1,14 +1,13 @@
 //! Spherical Lambert Azimuthal Equal-Area (LAEA) projection and great-circle
 //! distance, both in pure Rust.
 //!
-//! The reference R workflow computes distances by projecting to a planar CRS
-//! (EPSG:3035, LAEA Europe) and taking Euclidean distances. We reproduce that
-//! idea without binding PROJ: a LAEA centered on the region turns lon/lat into
-//! meters, and planar distance there is accurate for the "nearest coast" style
-//! query at regional scale. A single sphere (authalic radius) is used rather than
-//! the GRS80 ellipsoid; the error is well under coastline resolution for regional
-//! work. An ellipsoidal variant can replace this if sub-meter accuracy is ever
-//! required (see CLAUDE.md).
+//! Distances are taken the way a planar CRS such as EPSG:3035 (LAEA Europe)
+//! would give them, but without binding PROJ: a LAEA centered on the region
+//! turns lon/lat into meters, and planar distance there is accurate for the
+//! "nearest coast" style query at regional scale. A single sphere (authalic
+//! radius) is used rather than the GRS80 ellipsoid; the error is well under
+//! coastline resolution for regional work. An ellipsoidal variant can replace
+//! this if sub-meter accuracy is ever required (see CLAUDE.md).
 //!
 //! Formulas: Snyder, "Map Projections: A Working Manual" (USGS PP 1395), LAEA
 //! spherical case.

@@ -25,6 +25,21 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `type=email` and rejects a malformed address with an HTML page, which is a
   confusing way to find out about a typo.
 
+### Changed
+
+- The technical notes gained a section on how each distance is calculated: which
+  commands measure in the region's LAEA plane (`dist_to_coast`,
+  `municipality_dist`) and which on the unit sphere (`nearest_dist`), the steps
+  and constants each uses, and what that means for accuracy. Planar distances are
+  only dependable near the projection center, so the region needs to match the
+  data; `nearest` is exact globally and needs no region at all.
+
+- Removed the references to a "reference R workflow" from the documentation, the
+  rendered API docs, and the source comments. It pointed at something readers
+  have no access to and cannot identify, so it explained nothing. The provenance
+  it carried is now stated directly: distances are taken the way a planar CRS
+  such as EPSG:3035 would give them.
+
 ## [0.10.1] - 2026-08-03
 
 ### Fixed

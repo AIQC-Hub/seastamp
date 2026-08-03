@@ -33,7 +33,7 @@ impl BBox {
     }
 }
 
-/// The Baltic Sea box from the reference R workflow.
+/// The Baltic Sea box, the `baltic` region preset.
 pub const BALTIC: BBox = BBox {
     min_lon: 8.0,
     max_lon: 31.0,
