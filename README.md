@@ -89,6 +89,16 @@ preset (`global`, `baltic`, `norway`, `arctic`, `atlantic`, `europe`,
 `--proj-lon0/--proj-lat0` for the distance projection center. The default region
 is the whole globe.
 
+> **Set the region to match your data.** `coast` distances (and `place`'s
+> `municipality_dist`) are measured in a projection centered on the region, so
+> they are accurate near that center and degrade away from it. The whole-globe
+> default centers on (0, 0), which puts a North Sea run about 12% out and a
+> Pacific one far worse. seastamp warns when your points sit far enough away to
+> matter. `depth`, `nearest`, `sea`, and `place`'s `country` are unaffected and
+> work anywhere. Municipalities are Europe only (GISCO LAU), and regions
+> crossing the antimeridian are not supported. See
+> [Coverage and limits](https://aiqc-hub.github.io/seastamp/reference/coverage.html).
+
 The `nearest` command instead takes a second table (`--to`), the set of named
 locations to measure the distance to. Its coordinate columns default to
 `longitude`/`latitude` (`--to-lon-col`/`--to-lat-col`) and the name column to
@@ -158,8 +168,8 @@ bundled). `scripts/download_data.sh` fetches and unpacks any of them into
 scripts/download_data.sh download gshhg gebco countries lau
 
 # the Marine Regions (IHO) download sits behind a short form
-scripts/download_data.sh --mr-name "Your Name" --mr-email you@example.org \
-  --mr-country Norway download iho
+scripts/download_data.sh --mr-name "Your Name" --mr-org "Your Institute" \
+  --mr-email you@example.org --mr-country Norway download iho
 ```
 
 Run `scripts/download_data.sh --help` for all options. Sources:

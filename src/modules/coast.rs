@@ -148,6 +148,12 @@ impl CoastEnricher {
             }
         }
 
+        if segs.is_empty() {
+            eprintln!(
+                "[seastamp] warning: no shoreline segments overlap the region, so every distance \
+                 will be null. Check --region against your data."
+            );
+        }
         Ok(CoastEnricher {
             tree: RTree::bulk_load(segs),
             proj,
@@ -158,6 +164,12 @@ impl CoastEnricher {
 }
 
 impl Enricher for CoastEnricher {
+    /// Distances here are planar in the region LAEA, so the pipeline warns when
+    /// the input sits far from its center.
+    fn projection_center(&self) -> Option<(f64, f64)> {
+        Some(self.proj.center())
+    }
+
     fn outputs(&self) -> Vec<OutputSpec> {
         Vec::from([OutputSpec {
             name: self.column.clone(),

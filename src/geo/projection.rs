@@ -37,6 +37,13 @@ impl Laea {
         }
     }
 
+    /// The projection center as `(lon, lat)` in degrees. Distances measured in
+    /// this projection are accurate near it and degrade with distance from it,
+    /// so callers report it when warning about far-away input.
+    pub fn center(&self) -> (f64, f64) {
+        (self.lam0.to_degrees(), self.phi0.to_degrees())
+    }
+
     /// Project lon/lat (degrees) to `(x, y)` in meters.
     pub fn forward(&self, lon_deg: f64, lat_deg: f64) -> (f64, f64) {
         let lam = lon_deg.to_radians();

@@ -211,6 +211,21 @@ output, whose format follows its extension.
 
 ## Regions
 
+**The region is not only a crop: it is where distances are measured from.**
+`coast` and `place`'s `municipality_dist` are planar in a LAEA centered on the
+region, so a region that does not match the data returns wrong distances rather
+than an error. The whole-globe default centers on (0, 0), which is about 12% out
+in the North Sea and far worse in the Pacific. `Enricher::projection_center`
+exists so `run_module` can warn past 2% error; `depth` and `nearest` return
+`None` because neither uses a projection. Keep that warning working when
+touching the pipeline, and see `docs/src/reference/coverage.md`, which is the
+user-facing statement of what works where.
+
+Two known limits worth not rediscovering: a region crossing the antimeridian
+cannot be expressed (lon comparisons do not wrap, so `config::resolve` rejects
+`min_lon > max_lon`), and GISCO LAU is Europe-only, so `place --municipalities`
+is meaningless elsewhere.
+
 The default region is the whole globe. Other regions come from `--region`
 presets (`global`, `baltic`, `norway`, `arctic`, `atlantic`, `europe`,
 `mediterranean`) or explicit `--min-lon/--max-lon/--min-lat/--max-lat` and

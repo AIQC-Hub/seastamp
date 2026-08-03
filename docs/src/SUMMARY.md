@@ -13,6 +13,7 @@
 
 # Reference
 
+- [Coverage and limits](./reference/coverage.md)
 - [Regions](./reference/regions.md)
 - [Output columns](./reference/output-columns.md)
 - [Configuration](./reference/configuration.md)

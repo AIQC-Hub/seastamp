@@ -132,3 +132,34 @@ fn nan_coordinates_get_null_outputs() {
     // The NaN-coordinate row has no key, so its enrichment is null/NaN.
     assert!(val.get(1).map(|v| v.is_nan()).unwrap_or(true));
 }
+
+/// The planar modules warn when the input sits far from the projection center,
+/// because a wrong region is otherwise silent: the distances look plausible and
+/// are simply wrong. The check is the same radial-scale formula the projection
+/// implies, so assert it against known separations rather than on log output.
+#[test]
+fn laea_radial_error_grows_with_distance_from_center() {
+    use seastamp::geo::{haversine_m, projection::MEAN_RADIUS_M};
+
+    // Error of a radial length measured in a LAEA centered at (0, 0):
+    // sqrt((1 + cos c) / 2) - 1, where c is the angular distance.
+    let err_at = |lon: f64, lat: f64| {
+        let c = haversine_m(0.0, 0.0, lon, lat) / MEAN_RADIUS_M;
+        ((1.0 + c.cos()) / 2.0).sqrt() - 1.0
+    };
+
+    // At the center there is no distortion at all.
+    assert!(err_at(0.0, 0.0).abs() < 1e-12);
+
+    // The North Sea against a whole-globe default is off by about 12%, which is
+    // exactly the case the warning exists to catch.
+    let north_sea = err_at(3.0, 56.0);
+    assert!(
+        (-0.13..-0.10).contains(&north_sea),
+        "expected about -12%, got {north_sea}"
+    );
+
+    // Error grows monotonically with distance from the center.
+    assert!(err_at(3.0, 20.0).abs() < err_at(3.0, 56.0).abs());
+    assert!(err_at(3.0, 56.0).abs() < err_at(160.0, -40.0).abs());
+}

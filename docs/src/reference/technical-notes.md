@@ -90,6 +90,9 @@ even across a third of the Earth.
 
 ### Limits
 
+What this means in practice, and how to pick a region, is in
+[Coverage and limits](./coverage.md).
+
 Every distance here is spherical, so none of it is ellipsoidal-accurate. Expect
 agreement with an ellipsoidal calculation at the level of a few parts in a
 thousand, which is far below the resolution of the shoreline and boundary data

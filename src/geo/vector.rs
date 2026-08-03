@@ -178,6 +178,18 @@ impl<A> PolygonIndex<A> {
         }
     }
 
+    /// The center of the projection this index measures nearest-boundary
+    /// distances in, as `(lon, lat)` degrees.
+    pub fn center(&self) -> (f64, f64) {
+        self.proj.center()
+    }
+
+    /// Whether cropping to the region left no features at all. A caller should
+    /// say so rather than return nulls for every point without explanation.
+    pub fn is_empty(&self) -> bool {
+        self.feats.is_empty()
+    }
+
     /// The attribute of the feature containing the point, else of the feature
     /// with the nearest boundary, else `None` when the index is empty.
     pub fn locate(&self, lon: f64, lat: f64) -> Option<&A> {

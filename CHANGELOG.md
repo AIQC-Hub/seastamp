@@ -25,6 +25,36 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `type=email` and rejects a malformed address with an HTML page, which is a
   confusing way to find out about a typo.
 
+### Added
+
+- seastamp warns when the input sits far from the projection center. `coast` and
+  `place` measure distance in a plane centered on the region, which is accurate
+  near that center and degrades away from it, and the default region is the whole
+  globe, centered on (0, 0). A run without a matching region therefore returned
+  quietly wrong distances: about 12% out in the North Sea, over 60% in the
+  Pacific. The warning states the distance, the center, the approximate error,
+  and what to pass instead, and it only fires past 2% so a run whose region fits
+  its data stays silent. Modules declare this with a new
+  `Enricher::projection_center`; `depth` and `nearest` return `None`, since
+  neither uses a projection.
+
+- A region box crossing the antimeridian is now rejected with an explanation.
+  Longitude comparisons do not wrap, so such a box matched no reference feature
+  and every row came back null with nothing said. A reversed latitude box is
+  rejected too.
+
+- `coast`, `sea`, and `place` say so when cropping to the region leaves no
+  reference features, instead of returning an empty column for every row. For
+  municipalities the message notes that GISCO LAU is Europe-only, which is the
+  usual reason.
+
+- New documentation page, Coverage and limits, stating which commands work
+  anywhere (`depth`, `nearest`, `sea`, and `place`'s `country`), which need the
+  region set first (`coast`, and `municipality_dist`), and which is Europe-only
+  (`municipality`), with the size of the projection error by location, the
+  antimeridian limitation, and the accuracy ceiling. Linked from the README and
+  the regions and technical-notes pages.
+
 ### Changed
 
 - The technical notes gained a section on how each distance is calculated: which

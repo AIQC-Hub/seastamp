@@ -6,6 +6,11 @@ Equal-Area (LAEA) projection centered on that region. The `depth` command needs
 no region (a grid lookup is global), and `nearest` computes exact great-circle
 distances on the unit sphere, so it needs no region either.
 
+The region is not just a cropping filter: it sets where distances are measured
+from, so the wrong region silently returns wrong distances rather than an error.
+[Coverage and limits](./coverage.md) gives the size of that error and how to pick
+a region, and is worth reading before running on data outside northern Europe.
+
 ## Presets
 
 Pick a region with `--region <NAME>`:

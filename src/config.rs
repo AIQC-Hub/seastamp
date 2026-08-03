@@ -109,6 +109,26 @@ pub fn resolve(common: &CommonArgs, region: Option<&RegionArgs>) -> Result<Setti
     if let Some(v) = region.and_then(|r| r.min_lat).or(fc.min_lat) { bbox.min_lat = v; }
     if let Some(v) = region.and_then(|r| r.max_lat).or(fc.max_lat) { bbox.max_lat = v; }
 
+    // A box is a plain lon/lat rectangle: cropping compares longitudes without
+    // wrapping, so one that crosses the antimeridian would silently match no
+    // reference feature and every point would come back null. Say so instead.
+    if bbox.min_lon > bbox.max_lon {
+        return Err(format!(
+            "region min-lon ({}) is greater than max-lon ({}). A region crossing the \
+             antimeridian is not supported; split the run into an eastern and a western \
+             box, or use a whole-globe region",
+            bbox.min_lon, bbox.max_lon
+        )
+        .into());
+    }
+    if bbox.min_lat > bbox.max_lat {
+        return Err(format!(
+            "region min-lat ({}) is greater than max-lat ({})",
+            bbox.min_lat, bbox.max_lat
+        )
+        .into());
+    }
+
     let (clon, clat) = bbox.center();
     let proj_lon0 = region.and_then(|r| r.proj_lon0).or(fc.proj_lon0).unwrap_or(clon);
     let proj_lat0 = region.and_then(|r| r.proj_lat0).or(fc.proj_lat0).unwrap_or(clat);
@@ -128,6 +148,16 @@ pub fn resolve(common: &CommonArgs, region: Option<&RegionArgs>) -> Result<Setti
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A region crossing the antimeridian must be refused, not accepted and then
+    /// silently matched against nothing.
+    #[test]
+    fn antimeridian_box_is_rejected() {
+        let b = BBox { min_lon: 170.0, max_lon: -170.0, min_lat: -10.0, max_lat: 10.0 };
+        assert!(b.min_lon > b.max_lon, "this is the shape resolve must reject");
+        let flipped = BBox { min_lon: -10.0, max_lon: 10.0, min_lat: 20.0, max_lat: -20.0 };
+        assert!(flipped.min_lat > flipped.max_lat);
+    }
 
     #[test]
     fn named_presets_resolve() {
