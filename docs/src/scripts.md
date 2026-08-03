@@ -33,6 +33,9 @@ does not matter, since each adds distinct columns.
 | `--municipalities FILE` | place | GISCO LAU municipalities (optional) |
 | `--coast-unit km\|m` | coast | Distance unit (default `km`) |
 | `--depth-positive` | depth | Report depth positive below sea level |
+| `--depth-on-land` | depth | Add an `on_land` boolean column |
+| `--max-municipality-dist N` | place | Drop a municipality match further than N away |
+| `--place-unit km\|m` | place | Unit for `municipality_dist` and its cutoff (default `km`) |
 | `--sea-name-field STR` | sea | Feature field with the sea name (default `NAME`) |
 | `--nearest-name-field STR` | nearest | Reference name column (default `name`) |
 | `--nearest-unit km\|m` | nearest | Distance unit (default `km`) |

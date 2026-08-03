@@ -26,6 +26,10 @@
 #   --municipalities FILE GISCO LAU municipalities shapefile (place, optional)
 #   --coast-unit km|m     distance unit for coast   (default: km)
 #   --depth-positive      report depth positive below sea level
+#   --depth-on-land       add an on_land boolean column (depth)
+#   --max-municipality-dist N  drop a municipality match further than N away
+#                         (place; in --place-unit, default km)
+#   --place-unit km|m     unit for municipality_dist and its cutoff (default: km)
 #   --sea-name-field STR  feature field with the sea name  (default: NAME)
 #   --nearest-name-field STR  reference name column  (default: name)
 #   --nearest-unit km|m   distance unit for nearest (default: km)
@@ -62,7 +66,10 @@ COAST=; DEPTH=; SEA=; COUNTRIES=; NEAREST=
 MUNICIPALITIES=
 COAST_UNIT=km
 DEPTH_POSITIVE=0
+DEPTH_ON_LAND=0
 SEA_NAME_FIELD=NAME
+PLACE_UNIT=km
+MAX_MUNI_DIST=
 NEAREST_NAME_FIELD=name
 NEAREST_UNIT=km
 REGION=
@@ -98,6 +105,11 @@ while [[ $# -gt 0 ]]; do
     --coast-unit)         COAST_UNIT="${2:?--coast-unit requires km or m}"; shift 2 ;;
     --coast-unit=*)       COAST_UNIT="${1#*=}"; shift ;;
     --depth-positive)     DEPTH_POSITIVE=1; shift ;;
+    --depth-on-land)      DEPTH_ON_LAND=1; shift ;;
+    --max-municipality-dist) MAX_MUNI_DIST="${2:?--max-municipality-dist requires a number}"; shift 2 ;;
+    --max-municipality-dist=*) MAX_MUNI_DIST="${1#*=}"; shift ;;
+    --place-unit)         PLACE_UNIT="${2:?--place-unit requires km or m}"; shift 2 ;;
+    --place-unit=*)       PLACE_UNIT="${1#*=}"; shift ;;
     --sea-name-field)     SEA_NAME_FIELD="${2:?--sea-name-field requires a value}"; shift 2 ;;
     --sea-name-field=*)   SEA_NAME_FIELD="${1#*=}"; shift ;;
     --nearest-name-field) NEAREST_NAME_FIELD="${2:?--nearest-name-field requires a value}"; shift 2 ;;
@@ -178,13 +190,15 @@ module_args() {  # <module>
       region_args ;;
     depth)
       printf '%s\n' --data "$DEPTH"
-      [[ "$DEPTH_POSITIVE" == 1 ]] && printf '%s\n' --positive ;;
+      [[ "$DEPTH_POSITIVE" == 1 ]] && printf '%s\n' --positive
+      [[ "$DEPTH_ON_LAND"  == 1 ]] && printf '%s\n' --on-land ;;
     sea)
       printf '%s\n' --data "$SEA" --name-field "$SEA_NAME_FIELD"
       region_args ;;
     place)
-      printf '%s\n' --countries "$COUNTRIES"
+      printf '%s\n' --countries "$COUNTRIES" --unit "$PLACE_UNIT"
       [[ -n "$MUNICIPALITIES" ]] && printf '%s\n' --municipalities "$MUNICIPALITIES"
+      [[ -n "$MAX_MUNI_DIST"  ]] && printf '%s\n' --max-municipality-dist "$MAX_MUNI_DIST"
       region_args ;;
     nearest)
       printf '%s\n' --to "$NEAREST" --name-field "$NEAREST_NAME_FIELD" --unit "$NEAREST_UNIT" ;;

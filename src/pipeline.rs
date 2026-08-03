@@ -30,12 +30,14 @@ pub struct OutputSpec {
 pub enum OutputKind {
     Float,
     Text,
+    Bool,
 }
 
 /// A single computed value, matching an [`OutputSpec`] by position.
 pub enum Value {
     Float(f64),
     Text(Option<String>),
+    Bool(Option<bool>),
 }
 
 /// A module's per-location logic. `Sync` so locations run in parallel.
@@ -159,6 +161,19 @@ pub fn run_module(
                     let v = rk.and_then(|k| index.get(&k)).and_then(|&idx| {
                         match &results[idx][j] {
                             Value::Text(t) => t.clone(),
+                            _ => None,
+                        }
+                    });
+                    col.push(v);
+                }
+                new_cols.push(Series::new(spec.name.as_str().into(), col));
+            }
+            OutputKind::Bool => {
+                let mut col: Vec<Option<bool>> = Vec::with_capacity(n);
+                for rk in &row_key {
+                    let v = rk.and_then(|k| index.get(&k)).and_then(|&idx| {
+                        match &results[idx][j] {
+                            Value::Bool(b) => *b,
                             _ => None,
                         }
                     });

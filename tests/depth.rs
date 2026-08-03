@@ -51,10 +51,10 @@ fn settings() -> Settings {
     }
 }
 
-fn run_lookup(nc: &std::path::Path, positive: bool, df: DataFrame) -> DataFrame {
+fn run_lookup(nc: &std::path::Path, positive: bool, on_land: bool, df: DataFrame) -> DataFrame {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("out.parquet");
-    let enr = DepthEnricher::open(nc, "bathymetry".into(), positive).unwrap();
+    let enr = DepthEnricher::open(nc, "bathymetry".into(), positive, on_land).unwrap();
     run_module(&enr, df, &settings(), &out, Format::Parquet).unwrap();
     ParquetReader::new(std::fs::File::open(&out).unwrap())
         .finish()
@@ -72,6 +72,59 @@ fn depth_grid_lookup() {
     nearest_cell_and_out_of_grid();
     many_points_do_not_crash_the_grid_reader();
     positive_flips_sign();
+    on_land_flags_positive_elevation();
+}
+
+/// A 2x2 grid mixing sea and land: lat = [58, 59], lon = [18, 19], with the
+/// (58, 19) cell above sea level so `on_land` has something true to find.
+fn make_grid_with_land(path: &std::path::Path) {
+    seastamp::modules::depth::silence_hdf5_diagnostics();
+    let lats = [58.0f64, 59.0];
+    let lons = [18.0f64, 19.0];
+    let mut file = netcdf::create(path).unwrap();
+    file.add_dimension("lat", lats.len()).unwrap();
+    file.add_dimension("lon", lons.len()).unwrap();
+    file.add_variable::<f64>("lat", &["lat"]).unwrap().put_values(&lats, ..).unwrap();
+    file.add_variable::<f64>("lon", &["lon"]).unwrap().put_values(&lons, ..).unwrap();
+    // (lat, lon) row-major: sea, land / sea, sea
+    let data = [-100.0f64, 250.0, -300.0, -400.0];
+    file.add_variable::<f64>("elevation", &["lat", "lon"])
+        .unwrap()
+        .put_values(&data, ..)
+        .unwrap();
+}
+
+/// `--on-land` reads the raw GEBCO elevation, so it means the same thing with and
+/// without `--positive`, which inverts the reported number. Off-grid points get a
+/// null rather than `false`, since there is no reading to judge them by, and the
+/// depth value is still reported on land rather than nulled.
+fn on_land_flags_positive_elevation() {
+    let dir = tempfile::tempdir().unwrap();
+    let nc = dir.path().join("land.nc");
+    make_grid_with_land(&nc);
+
+    let df = df! {
+        // sea cell, land cell, off-grid
+        "longitude" => [18.0f64, 19.0, 100.0],
+        "latitude"  => [58.0f64, 58.0, 58.0],
+    }
+    .unwrap();
+
+    for positive in [false, true] {
+        let back = run_lookup(&nc, positive, true, df.clone());
+        let land = back.column("on_land").unwrap().bool().unwrap();
+        assert_eq!(land.get(0), Some(false), "negative elevation is sea");
+        assert_eq!(land.get(1), Some(true), "positive elevation is land");
+        assert_eq!(land.get(2), None, "off-grid has no reading");
+
+        let b = back.column("bathymetry").unwrap().f64().unwrap();
+        let expect = if positive { -250.0 } else { 250.0 };
+        assert_eq!(b.get(1), Some(expect), "land elevation is still reported");
+    }
+
+    // Without the flag the column does not exist at all.
+    let plain = run_lookup(&nc, false, false, df);
+    assert!(plain.column("on_land").is_err(), "no on_land column by default");
 }
 
 fn nearest_cell_and_out_of_grid() {
@@ -86,7 +139,7 @@ fn nearest_cell_and_out_of_grid() {
     }
     .unwrap();
 
-    let back = run_lookup(&nc, false, df);
+    let back = run_lookup(&nc, false, false, df);
     let b = back.column("bathymetry").unwrap().f64().unwrap();
     assert_eq!(b.get(0), Some(-115.0)); // i=1, j=1 -> -(100+10+5)
     assert_eq!(b.get(1), Some(-235.0)); // i=2, j=3 -> -(200+30+5)
@@ -115,7 +168,7 @@ fn many_points_do_not_crash_the_grid_reader() {
     let lats: Vec<f64> = (0..n).map(|k| 58.0 + ((k % 2000) as f64) * 0.001).collect();
     let df = df! { "longitude" => lons, "latitude" => lats }.unwrap();
 
-    let back = run_lookup(&nc, false, df);
+    let back = run_lookup(&nc, false, false, df);
     let b = back.column("bathymetry").unwrap().f64().unwrap();
     assert_eq!(b.len(), n);
     assert!(b.into_no_null_iter().all(|v| v < 0.0), "every in-grid cell is negative");
@@ -132,7 +185,7 @@ fn positive_flips_sign() {
     }
     .unwrap();
 
-    let back = run_lookup(&nc, true, df);
+    let back = run_lookup(&nc, true, false, df);
     let b = back.column("bathymetry").unwrap().f64().unwrap();
     assert_eq!(b.get(0), Some(115.0)); // -(-115) with --positive
 }

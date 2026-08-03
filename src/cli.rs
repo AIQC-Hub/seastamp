@@ -161,6 +161,12 @@ pub struct DepthArgs {
     #[arg(long)]
     pub positive: bool,
 
+    /// Append an `on_land` boolean column, true where the GEBCO elevation is at or
+    /// above sea level, so land points are flagged rather than only inferable from
+    /// the sign. The depth value itself is reported either way
+    #[arg(long)]
+    pub on_land: bool,
+
     /// Output column name
     #[arg(long, default_value = "bathymetry")]
     pub column: String,
@@ -200,6 +206,16 @@ pub struct PlaceArgs {
     /// GISCO LAU municipalities (shapefile) for the nearest-municipality lookup
     #[arg(long)]
     pub municipalities: Option<PathBuf>,
+
+    /// Drop the municipality when the nearest one is further away than this, in
+    /// --unit. The match is otherwise unbounded, so a site outside the coverage
+    /// (GISCO LAU is Europe only) is assigned however distant a municipality
+    #[arg(long)]
+    pub max_municipality_dist: Option<f64>,
+
+    /// Distance unit for the municipality_dist column and --max-municipality-dist
+    #[arg(long, value_enum, default_value_t = DistUnit::Km)]
+    pub unit: DistUnit,
 }
 
 #[derive(Args, Debug)]

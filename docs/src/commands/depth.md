@@ -7,7 +7,8 @@ seastamp depth <INPUT> --data <GEBCO.nc> [OPTIONS]
 ```
 
 Appends one column, `bathymetry` (rename with `--column`), holding the GEBCO
-elevation at each point in meters.
+elevation at each point in meters, and a second boolean `on_land` column with
+`--on-land`.
 
 ## How it works
 
