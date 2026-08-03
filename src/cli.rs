@@ -5,7 +5,7 @@ use std::path::PathBuf;
 #[command(
     name = "seastamp",
     version,
-    about = "Enrich longitude/latitude points with geospatial attributes"
+    about = "Stamp longitude/latitude points with sea attributes"
 )]
 pub struct Cli {
     #[command(subcommand)]

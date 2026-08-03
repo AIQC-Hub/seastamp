@@ -1,4 +1,4 @@
-//! seastamp: enrich longitude/latitude points with geospatial attributes.
+//! seastamp: stamp longitude/latitude points with sea attributes.
 //!
 //! Five modules add columns to a table of points, keyed only on `longitude` and
 //! `latitude`:
