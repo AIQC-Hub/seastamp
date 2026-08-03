@@ -123,8 +123,8 @@ writes use `set_parallel(false)` for the same reason as ctddump.
 
 **Geometry** (`src/geo/`): pure Rust, no PROJ / GDAL, so downstream projects need
 no extra system libraries. `Laea` is a spherical Lambert Azimuthal Equal-Area
-projection centered on the region (the reference R workflow used EPSG:3035 LAEA
-for distances); planar distance in that projection is accurate for the
+projection centered on the region, giving distances the way a planar CRS such as
+EPSG:3035 would; planar distance in that projection is accurate for the
 nearest-coast query at regional scale. `haversine_m` is the great-circle distance
 used for reference and for refining index candidates. Sub-meter accuracy, if ever
 needed, means an ellipsoidal LAEA in place of the spherical one.
@@ -211,13 +211,28 @@ output, whose format follows its extension.
 
 ## Regions
 
+**The region is not only a crop: it is where distances are measured from.**
+`coast` and `place`'s `municipality_dist` are planar in a LAEA centered on the
+region, so a region that does not match the data returns wrong distances rather
+than an error. The whole-globe default centers on (0, 0), which is about 12% out
+in the North Sea and far worse in the Pacific. `Enricher::projection_center`
+exists so `run_module` can warn past 2% error; `depth` and `nearest` return
+`None` because neither uses a projection. Keep that warning working when
+touching the pipeline, and see `docs/src/reference/coverage.md`, which is the
+user-facing statement of what works where.
+
+Two known limits worth not rediscovering: a region crossing the antimeridian
+cannot be expressed (lon comparisons do not wrap, so `config::resolve` rejects
+`min_lon > max_lon`), and GISCO LAU is Europe-only, so `place --municipalities`
+is meaningless elsewhere.
+
 The default region is the whole globe. Other regions come from `--region`
 presets (`global`, `baltic`, `norway`, `arctic`, `atlantic`, `europe`,
 `mediterranean`) or explicit `--min-lon/--max-lon/--min-lat/--max-lat` and
 `--proj-lon0/--proj-lat0`.
-The Baltic box (8, 31, 53, 66) matches the R examples and is the `baltic` preset.
+The Baltic box (8, 31, 53, 66) is the `baltic` preset.
 Add presets in `config::preset_bbox`. The `place` municipality lookup will also
-need a per-region country list (the R snippet's ISO3 set).
+need a per-region country list of ISO3 codes.
 
 ## Streaming (future)
 

@@ -59,6 +59,71 @@ pub trait Enricher: Sync {
     fn parallel(&self) -> bool {
         true
     }
+
+    /// The center of the planar projection this module measures in, as
+    /// `(lon, lat)` degrees, or `None` for a module whose results do not depend
+    /// on one (`depth` reads a grid, `nearest` works on the sphere).
+    ///
+    /// [`run_module`] uses it to warn when the input sits far enough from the
+    /// center that planar distances are visibly distorted, which is otherwise
+    /// silent: the numbers look plausible and are simply wrong.
+    fn projection_center(&self) -> Option<(f64, f64)> {
+        None
+    }
+}
+
+/// Great-circle distance in meters between two lon/lat points, and the relative
+/// error a planar LAEA measurement picks up at that separation from its center.
+///
+/// For an azimuthal equal-area projection the radial scale at angular distance
+/// `c` is `1/k'` with `k' = sqrt(2 / (1 + cos c))`, so a length measured radially
+/// comes out scaled by `sqrt((1 + cos c) / 2)`. Returned as a signed fraction:
+/// negative means the projection understates the true distance.
+fn laea_radial_error(angle_rad: f64) -> f64 {
+    ((1.0 + angle_rad.cos()) / 2.0).sqrt() - 1.0
+}
+
+/// Warn when the input lies far enough from the projection center for planar
+/// distances to be noticeably off. Only fires past a threshold, so a run whose
+/// region actually matches its data stays quiet.
+fn warn_if_far_from_center(uniq: &[(f64, f64)], center: (f64, f64)) {
+    const WARN_ABOVE: f64 = 0.02; // 2% understatement, about 23 degrees away
+
+    let (clon, clat) = center;
+    let mut worst_m = 0.0_f64;
+    for &(lon, lat) in uniq {
+        if !lon.is_finite() || !lat.is_finite() {
+            continue;
+        }
+        let d = crate::geo::haversine_m(clon, clat, lon, lat);
+        if d > worst_m {
+            worst_m = d;
+        }
+    }
+    if worst_m <= 0.0 {
+        return;
+    }
+    let err = laea_radial_error(worst_m / crate::geo::projection::MEAN_RADIUS_M);
+    if err.abs() < WARN_ABOVE {
+        return;
+    }
+    eprintln!(
+        "[seastamp] warning: the farthest input point is {:.0} km from the projection center \
+         ({clon:.1}, {clat:.1}), where planar distances are off by roughly {:.0}%.",
+        worst_m / 1000.0,
+        err.abs() * 100.0
+    );
+    eprintln!(
+        "[seastamp] warning: pass --region, or --proj-lon0 / --proj-lat0, centered on your data."
+    );
+    // Only worth saying when the center looks like the untouched global default,
+    // otherwise it contradicts the region the user actually chose.
+    if clon.abs() < 1e-9 && clat.abs() < 1e-9 {
+        eprintln!(
+            "[seastamp] warning: no region was given, so the projection defaults to the center \
+             of the whole globe, (0, 0)."
+        );
+    }
 }
 
 /// Extract a column as `f64`, mapping nulls to NaN. Casts from any numeric dtype.
@@ -126,6 +191,12 @@ pub fn run_module(
             uniq.push((rlo, rla));
         }
         row_key.push(Some(k));
+    }
+
+    // Warn before enriching, so the advice is visible above the results rather
+    // than buried after a long run.
+    if let Some(c) = enr.projection_center() {
+        warn_if_far_from_center(&uniq, c);
     }
 
     // Enrich unique locations, in parallel unless the module forbids it (see

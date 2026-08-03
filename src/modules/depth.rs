@@ -1,11 +1,11 @@
 //! Bathymetric depth from a GEBCO gridded NetCDF file.
 //!
-//! GEBCO is a regular lon/lat grid, so no nearest-neighbor search (the R code's
-//! `nn2`) is needed. We read the `lon`/`lat` axes once to learn each axis origin
-//! and spacing, then map every point straight to the enclosing cell by
-//! arithmetic. That is O(1) per point and exact to the grid. The `netcdf` crate
-//! (linking HDF5, as ctddump already does) reads a single `elevation` cell per
-//! location, so the whole grid never needs to be resident.
+//! GEBCO is a regular lon/lat grid, so no nearest-neighbor search is needed. We
+//! read the `lon`/`lat` axes once to learn each axis origin and spacing, then
+//! map every point straight to the enclosing cell by arithmetic. That is O(1)
+//! per point and exact to the grid. The `netcdf` crate (linking HDF5, as
+//! ctddump already does) reads a single `elevation` cell per location, so the
+//! whole grid never needs to be resident.
 //!
 //! Unlike the other modules this one enriches on a single thread
 //! ([`Enricher::parallel`] returns `false`). HDF5 is commonly built serial, and a

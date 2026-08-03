@@ -24,6 +24,8 @@
 #               (CC BY-NC-SA 4.0). Every field it marks required has to be
 #               supplied: --mr-name, --mr-org, --mr-email, --mr-country,
 #               --mr-category, and --mr-purpose. The last two have defaults.
+#               Anything missing is asked for at the terminal; with -y/--yes or
+#               no terminal to ask at, a missing field is an error instead.
 #               Running this download submits the form and accepts the licence,
 #               so the values are shown for confirmation before anything starts.
 #   countries   Natural Earth 10m admin 0 countries, for `place --countries`.
@@ -146,9 +148,38 @@ in_list() {  # <needle> <candidate...>
   return 1
 }
 
-# Check the Marine Regions form values before anything is downloaded, so a typo
-# in a dropdown fails immediately instead of after the multi-GB GEBCO grid.
-# Every field the form marks required is required here too.
+# Read one required form field, repeating until something is entered.
+prompt_value() {  # <varname> <label>
+  local __var="$1" label="$2" reply
+  while :; do
+    read -r -p "  $label: " reply
+    [[ -n "$reply" ]] && break
+    log "  a value is required"
+  done
+  printf -v "$__var" '%s' "$reply"
+}
+
+# Pick one of a fixed list by number. Used for the form's two dropdowns, whose
+# values contain spaces and ampersands and so are awkward to type by hand.
+prompt_choice() {  # <varname> <label> <option...>
+  local __var="$1" label="$2"; shift 2
+  local -a opts=("$@")
+  local i reply
+  log "  $label:"
+  for i in "${!opts[@]}"; do printf '    %2d) %s\n' "$((i + 1))" "${opts[i]}" >&2; done
+  while :; do
+    read -r -p "  number [1-${#opts[@]}]: " reply
+    if [[ "$reply" =~ ^[0-9]+$ ]] && (( reply >= 1 && reply <= ${#opts[@]} )); then
+      printf -v "$__var" '%s' "${opts[reply - 1]}"
+      return 0
+    fi
+    log "  enter a number between 1 and ${#opts[@]}"
+  done
+}
+
+# Validate the Marine Regions form values. No prompting: this is the check the
+# download itself runs, and it has to behave the same in a parallel worker as on
+# the command line.
 check_mr() {
   local missing=()
   [[ -z "$MR_NAME"    ]] && missing+=(--mr-name)
@@ -159,6 +190,12 @@ check_mr() {
     log "the Marine Regions form requires: ${missing[*]}"
     log "see -h/--help, or fetch the iho zip by hand from"
     log "https://www.marineregions.org/downloads.php"
+    return 1
+  fi
+  # The form's field is type=email and a malformed address is rejected with an
+  # HTML page, which is a confusing way to learn about a typo.
+  if [[ "$MR_EMAIL" != *@*.* ]]; then
+    log "--mr-email does not look like an address: $MR_EMAIL"
     return 1
   fi
   if ! in_list "$MR_CATEGORY" "${MR_CATEGORIES[@]}"; then
@@ -174,6 +211,40 @@ check_mr() {
     return 1
   fi
   return 0
+}
+
+# Fill in whatever the form needs and the command line did not supply, then
+# validate. Asking is only possible with a terminal to ask at, and -y/--yes says
+# to start immediately, so both of those fall back to check_mr's hard failure.
+# Runs before anything downloads, so a wrong value costs nothing.
+resolve_mr() {
+  if [[ ! -t 0 || "$ASSUME_YES" == 1 ]]; then
+    check_mr
+    return
+  fi
+
+  local -a needed=()
+  [[ -z "$MR_NAME"    ]] && needed+=(name)
+  [[ -z "$MR_ORG"     ]] && needed+=(organisation)
+  [[ -z "$MR_EMAIL"   ]] && needed+=(email)
+  [[ -z "$MR_COUNTRY" ]] && needed+=(country)
+  in_list "$MR_CATEGORY" "${MR_CATEGORIES[@]}" || needed+=(category)
+  in_list "$MR_PURPOSE" "${MR_PURPOSES[@]}"    || needed+=(purpose)
+  [[ ${#needed[@]} -eq 0 ]] && { check_mr; return; }
+
+  log "the iho download fills in the marineregions.org form. These fields are"
+  log "missing or not one of its accepted values: ${needed[*]}. Ctrl-C to abort."
+  [[ -z "$MR_NAME"    ]] && prompt_value MR_NAME    "Name"
+  [[ -z "$MR_ORG"     ]] && prompt_value MR_ORG     "Organisation"
+  [[ -z "$MR_EMAIL"   ]] && prompt_value MR_EMAIL   "E-mail"
+  [[ -z "$MR_COUNTRY" ]] && prompt_value MR_COUNTRY "Country (in English, as the form spells it)"
+  in_list "$MR_CATEGORY" "${MR_CATEGORIES[@]}" \
+    || prompt_choice MR_CATEGORY "User category" "${MR_CATEGORIES[@]}"
+  in_list "$MR_PURPOSE" "${MR_PURPOSES[@]}" \
+    || prompt_choice MR_PURPOSE "Purpose" "${MR_PURPOSES[@]}"
+
+  # The answers are echoed back by show_config before anything is submitted.
+  check_mr
 }
 
 # Print the resolved configuration, then ask for confirmation unless -y/--yes was
@@ -395,7 +466,7 @@ main() {
   # Validate the form values before the summary, so what is shown is what will
   # actually be sent, and a bad value costs nothing.
   if in_list iho "${datasets[@]}"; then
-    check_mr || return 1
+    resolve_mr || return 1
   fi
 
   show_config "$cmd" "${datasets[@]}"

@@ -4,6 +4,72 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-08-04
+
+### Added
+
+- `scripts/download_data.sh` asks for the Marine Regions details it needs
+  instead of only refusing to continue. A missing name, organisation, email, or
+  country is prompted for, and the user category and purpose are offered as
+  numbered menus, so their exact spellings (`civil society`,
+  `Data exploration & testing`) do not have to be typed or looked up. This makes
+  `scripts/download_data.sh download iho` a workable command on its own.
+
+  Prompting needs a terminal to ask at, so it is skipped when stdin is not one,
+  and under `-y/--yes`, which asks to start immediately. Both keep the previous
+  behavior of failing and naming the missing options, which is what a CI run or
+  a pipeline needs. The answers are echoed in the confirmation summary before
+  anything is submitted, as before.
+
+- `--mr-email` is checked for an `@` and a dot before use. The form's field is
+  `type=email` and rejects a malformed address with an HTML page, which is a
+  confusing way to find out about a typo.
+
+### Added
+
+- seastamp warns when the input sits far from the projection center. `coast` and
+  `place` measure distance in a plane centered on the region, which is accurate
+  near that center and degrades away from it, and the default region is the whole
+  globe, centered on (0, 0). A run without a matching region therefore returned
+  quietly wrong distances: about 12% out in the North Sea, over 60% in the
+  Pacific. The warning states the distance, the center, the approximate error,
+  and what to pass instead, and it only fires past 2% so a run whose region fits
+  its data stays silent. Modules declare this with a new
+  `Enricher::projection_center`; `depth` and `nearest` return `None`, since
+  neither uses a projection.
+
+- A region box crossing the antimeridian is now rejected with an explanation.
+  Longitude comparisons do not wrap, so such a box matched no reference feature
+  and every row came back null with nothing said. A reversed latitude box is
+  rejected too.
+
+- `coast`, `sea`, and `place` say so when cropping to the region leaves no
+  reference features, instead of returning an empty column for every row. For
+  municipalities the message notes that GISCO LAU is Europe-only, which is the
+  usual reason.
+
+- New documentation page, Coverage and limits, stating which commands work
+  anywhere (`depth`, `nearest`, `sea`, and `place`'s `country`), which need the
+  region set first (`coast`, and `municipality_dist`), and which is Europe-only
+  (`municipality`), with the size of the projection error by location, the
+  antimeridian limitation, and the accuracy ceiling. Linked from the README and
+  the regions and technical-notes pages.
+
+### Changed
+
+- The technical notes gained a section on how each distance is calculated: which
+  commands measure in the region's LAEA plane (`dist_to_coast`,
+  `municipality_dist`) and which on the unit sphere (`nearest_dist`), the steps
+  and constants each uses, and what that means for accuracy. Planar distances are
+  only dependable near the projection center, so the region needs to match the
+  data; `nearest` is exact globally and needs no region at all.
+
+- Removed the references to a "reference R workflow" from the documentation, the
+  rendered API docs, and the source comments. It pointed at something readers
+  have no access to and cannot identify, so it explained nothing. The provenance
+  it carried is now stated directly: distances are taken the way a planar CRS
+  such as EPSG:3035 would give them.
+
 ## [0.10.1] - 2026-08-03
 
 ### Fixed

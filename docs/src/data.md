@@ -43,6 +43,12 @@ Caveats baked into the script:
   | `--mr-category` | `academia`, `industry`, `government`, `civil society` |
   | `--mr-purpose` | `Conservation`, `Data exploration & testing`, `Education & workshops`, `Fisheries`, `Policy & Marine Spatial Planning`, `Mapping & visualisation`, `Maritime transport & cruise planning`, `Industry & offshore activities`, `Research`, `GIS Analysis`, `Personal information`, `Other` |
 
+  Anything missing or invalid is prompted for at the terminal, with the two
+  dropdowns offered as numbered menus, so you can also just run
+  `scripts/download_data.sh download iho` and answer the questions. Prompting
+  needs a terminal to ask at, so under `-y/--yes` or in a non-interactive shell
+  (CI, a pipeline) a missing field stays a hard error rather than hanging.
+
   `--mr-country` is free text but has to match the form's spelling of the
   country in English. Because these details go to a third party and the download
   accepts the dataset licence (CC BY-NC-SA 4.0, non-commercial and share-alike),

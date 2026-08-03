@@ -78,11 +78,25 @@ impl SeaEnricher {
             )
             .into());
         }
-        Ok(Self::from_features(feats, region, proj, column))
+        let enr = Self::from_features(feats, region, proj, column);
+        if enr.index.is_empty() {
+            eprintln!(
+                "[seastamp] warning: no sea polygons overlap the region, so every row will be \
+                 empty. Check --region against your data."
+            );
+        }
+        Ok(enr)
     }
 }
 
 impl Enricher for SeaEnricher {
+    /// Containment needs no projection, but the nearest-boundary fallback for
+    /// points inside no polygon is planar, so a far-away center can pick the
+    /// wrong feature.
+    fn projection_center(&self) -> Option<(f64, f64)> {
+        Some(self.index.center())
+    }
+
     fn outputs(&self) -> Vec<OutputSpec> {
         Vec::from([OutputSpec {
             name: self.column.clone(),

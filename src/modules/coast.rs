@@ -7,7 +7,8 @@
 //!   3. Per location: project the point and take the minimum planar distance to
 //!      the nearest segment (Snyder LAEA meters), converted to the chosen unit.
 //!
-//! This mirrors the reference R workflow's projected-distance approach.
+//! Distances are therefore planar in that projection, which is accurate at
+//! regional scale and degrades with distance from the projection center.
 //!
 //! Cropping: only segments whose lon/lat bounding box intersects the region box
 //! (expanded by a margin) are indexed. Whole polygons are never clipped, so no
@@ -147,6 +148,12 @@ impl CoastEnricher {
             }
         }
 
+        if segs.is_empty() {
+            eprintln!(
+                "[seastamp] warning: no shoreline segments overlap the region, so every distance \
+                 will be null. Check --region against your data."
+            );
+        }
         Ok(CoastEnricher {
             tree: RTree::bulk_load(segs),
             proj,
@@ -157,6 +164,12 @@ impl CoastEnricher {
 }
 
 impl Enricher for CoastEnricher {
+    /// Distances here are planar in the region LAEA, so the pipeline warns when
+    /// the input sits far from its center.
+    fn projection_center(&self) -> Option<(f64, f64)> {
+        Some(self.proj.center())
+    }
+
     fn outputs(&self) -> Vec<OutputSpec> {
         Vec::from([OutputSpec {
             name: self.column.clone(),

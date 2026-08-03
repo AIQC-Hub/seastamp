@@ -128,18 +128,38 @@ impl PlaceEnricher {
             None => None,
         };
 
-        Ok(Self::from_features(
+        let enr = Self::from_features(
             cfeats,
             municipalities,
             region,
             proj,
             dist_divisor,
             max_municipality_dist_m,
-        ))
+        );
+        if enr.countries.is_empty() {
+            eprintln!(
+                "[seastamp] warning: no country polygons overlap the region, so country will be \
+                 empty for every row. Check --region against your data."
+            );
+        }
+        if enr.municipalities.as_ref().is_some_and(|m| m.is_empty()) {
+            eprintln!(
+                "[seastamp] warning: no municipality polygons overlap the region. GISCO LAU \
+                 covers Europe only, so this is expected outside it; drop --municipalities, or \
+                 widen --region."
+            );
+        }
+        Ok(enr)
     }
 }
 
 impl Enricher for PlaceEnricher {
+    /// `municipality_dist` is planar, and both lookups fall back to the nearest
+    /// boundary for points inside no polygon, which is a planar comparison too.
+    fn projection_center(&self) -> Option<(f64, f64)> {
+        Some(self.countries.center())
+    }
+
     fn outputs(&self) -> Vec<OutputSpec> {
         let mut v = Vec::from([
             OutputSpec { name: "country".into(), kind: OutputKind::Text },
