@@ -184,7 +184,7 @@ before implementing it.
 Match ctddump: `git flow` with permanent `main` (stable) and `develop`
 (integration) branches; day-to-day work on `develop`. Commit and push only when
 the user asks. Commit messages end with
-`Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+`Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
 
 Branch prefixes are the git-flow defaults (`feature/`, `bugfix/`, `release/`,
 `hotfix/`, `support/`) with `v` as the version tag prefix, so a feature branch
