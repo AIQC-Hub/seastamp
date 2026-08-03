@@ -181,16 +181,29 @@ impl<A> PolygonIndex<A> {
     /// The attribute of the feature containing the point, else of the feature
     /// with the nearest boundary, else `None` when the index is empty.
     pub fn locate(&self, lon: f64, lat: f64) -> Option<&A> {
+        self.locate_with_dist(lon, lat).map(|(a, _)| a)
+    }
+
+    /// As [`Self::locate`], plus how far the point is from the feature: `0.0` when
+    /// it is contained, otherwise the planar distance in meters to the nearest
+    /// boundary segment, measured in the index's LAEA projection (the same basis
+    /// `coast` uses).
+    ///
+    /// The distance is what tells a real containment apart from a nearest-feature
+    /// fallback that reached a long way, which matters for an index covering only
+    /// part of the globe: a point far outside the covered area still gets the
+    /// nearest feature in it, however distant.
+    pub fn locate_with_dist(&self, lon: f64, lat: f64) -> Option<(&A, f64)> {
         let q = AABB::from_point([lon, lat]);
         for cand in self.bbox_tree.locate_in_envelope_intersecting(q) {
             if point_in_rings(lon, lat, &self.feats[cand.idx].0) {
-                return Some(&self.feats[cand.idx].1);
+                return Some((&self.feats[cand.idx].1, 0.0));
             }
         }
         let (x, y) = self.proj.forward(lon, lat);
         self.seg_tree
             .nearest_neighbor([x, y])
-            .map(|s| &self.feats[s.tag].1)
+            .map(|s| (&self.feats[s.tag].1, s.distance_2(&[x, y]).sqrt()))
     }
 }
 

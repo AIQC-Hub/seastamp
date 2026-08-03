@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `depth --on-land` appends an `on_land` boolean column, true where the GEBCO
+  elevation is at or above sea level. A point on land gets a real elevation from
+  GEBCO, so a consumer could read a mountain top as a depth with nothing to say
+  otherwise. The depth value is still reported either way, never nulled, and the
+  flag only makes the distinction explicit. The flag reads the raw elevation, so
+  it means the same under `--positive`, which inverts the reported sign. Points
+  with no reading at all, off the grid, get a null rather than `false`.
+
+- `place` reports how far away the municipality it matched is, and can refuse a
+  match that is too far. The nearest-municipality lookup is unbounded and GISCO
+  LAU covers Europe only, so a site outside that coverage was assigned whatever
+  municipality was closest, however distant, with no way to tell it from a point
+  that genuinely sits in one. A `municipality_dist` column now accompanies
+  `municipality` whenever `--municipalities` is given, holding `0` for a real
+  containment and the distance to the boundary otherwise, and
+  `--max-municipality-dist` discards matches beyond a limit, clearing the name
+  and the distance together so a row never carries one without the other. Both
+  read in `--unit`, `km` by default, matching `coast` and `nearest`. A run
+  without `--municipalities` keeps exactly the columns it had before. `country`
+  needs none of this, since Natural Earth is global.
+
 ## [0.9.1] - 2026-08-03
 
 ### Fixed

@@ -142,9 +142,9 @@ Run `scripts/enrich.sh --help` for all options.
 | Command | Appended columns |
 |---------|------------------|
 | `coast` | `dist_to_coast` (rename with `--column`) |
-| `depth` | `bathymetry` (rename with `--column`) |
+| `depth` | `bathymetry` (rename with `--column`), plus `on_land` with `--on-land` |
 | `sea`   | `sea_name` (rename with `--column`) |
-| `place` | `country`, `country_code`, `municipality` |
+| `place` | `country`, `country_code`, `municipality`, plus `municipality_dist` with `--municipalities` |
 | `nearest` | `nearest_name`, `nearest_dist` (rename with `--name-column` / `--dist-column`) |
 
 ## Data

@@ -5,8 +5,17 @@
 //! the shared [`PolygonIndex`]:
 //!   - Country: Natural Earth country polygons. Appends `country` and
 //!     `country_code` (ISO 3166-1 alpha-3 where Natural Earth provides one).
-//!   - Municipality: GISCO LAU polygons. Appends `municipality`. The set is
-//!     optional; without `--municipalities` the column stays empty.
+//!   - Municipality: GISCO LAU polygons. Appends `municipality`, and alongside it
+//!     `municipality_dist` (0 inside the polygon, else the distance to it) when a
+//!     set is given. The set is optional; without `--municipalities` the column
+//!     stays empty and no distance column is added.
+//!
+//! The nearest-municipality match is unbounded by default, which matters because
+//! GISCO LAU covers Europe only: a site outside that coverage still resolves to
+//! whatever municipality is closest, however far. `municipality_dist` exposes
+//! that, and `--max-municipality-dist` drops the match past a limit, clearing the
+//! name and the distance together. Country does not need this, since Natural
+//! Earth is global.
 //!
 //! Both polygon sets are cropped to the region box plus margin at load time, so
 //! the large LAU file costs one parse and a small index; features are kept
@@ -19,7 +28,7 @@
 use std::error::Error;
 use std::path::Path;
 
-use crate::cli::PlaceArgs;
+use crate::cli::{DistUnit, PlaceArgs};
 use crate::config::{resolve, BBox, Settings};
 use crate::geo::vector::{PolygonIndex, Rings, CROP_MARGIN_DEG};
 use crate::geo::Laea;
@@ -50,6 +59,11 @@ fn field_string(record: &shapefile::dbase::Record, candidates: &[&str]) -> Optio
 pub struct PlaceEnricher {
     countries: PolygonIndex<(String, Option<String>)>,
     municipalities: Option<PolygonIndex<String>>,
+    /// Metres per output unit: 1000 for km, 1 for m.
+    dist_divisor: f64,
+    /// Drop a municipality match further than this many metres. `None` leaves the
+    /// nearest match unbounded, which is the historical behavior.
+    max_municipality_dist_m: Option<f64>,
 }
 
 impl PlaceEnricher {
@@ -61,11 +75,15 @@ impl PlaceEnricher {
         municipalities: Option<Vec<(Rings, String)>>,
         region: BBox,
         proj: Laea,
+        dist_divisor: f64,
+        max_municipality_dist_m: Option<f64>,
     ) -> Self {
         PlaceEnricher {
             countries: PolygonIndex::build(countries, region, CROP_MARGIN_DEG, proj),
             municipalities: municipalities
                 .map(|m| PolygonIndex::build(m, region, CROP_MARGIN_DEG, proj)),
+            dist_divisor,
+            max_municipality_dist_m,
         }
     }
 
@@ -76,6 +94,8 @@ impl PlaceEnricher {
         municipalities: Option<&Path>,
         region: BBox,
         proj: Laea,
+        dist_divisor: f64,
+        max_municipality_dist_m: Option<f64>,
     ) -> Result<Self, Box<dyn Error>> {
         let mut cfeats = Vec::new();
         for (rings, record) in super::shp_polygons(countries)? {
@@ -108,17 +128,30 @@ impl PlaceEnricher {
             None => None,
         };
 
-        Ok(Self::from_features(cfeats, municipalities, region, proj))
+        Ok(Self::from_features(
+            cfeats,
+            municipalities,
+            region,
+            proj,
+            dist_divisor,
+            max_municipality_dist_m,
+        ))
     }
 }
 
 impl Enricher for PlaceEnricher {
     fn outputs(&self) -> Vec<OutputSpec> {
-        Vec::from([
+        let mut v = Vec::from([
             OutputSpec { name: "country".into(), kind: OutputKind::Text },
             OutputSpec { name: "country_code".into(), kind: OutputKind::Text },
             OutputSpec { name: "municipality".into(), kind: OutputKind::Text },
-        ])
+        ]);
+        // Only meaningful when there is a municipality set to measure against, so
+        // a run without --municipalities keeps exactly the columns it always had.
+        if self.municipalities.is_some() {
+            v.push(OutputSpec { name: "municipality_dist".into(), kind: OutputKind::Float });
+        }
+        v
     }
 
     fn enrich(&self, lon: f64, lat: f64) -> Vec<Value> {
@@ -126,16 +159,35 @@ impl Enricher for PlaceEnricher {
             Some((name, code)) => (Some(name.clone()), code.clone()),
             None => (None, None),
         };
-        let municipality = self
-            .municipalities
-            .as_ref()
-            .and_then(|m| m.locate(lon, lat))
-            .cloned();
-        Vec::from([
-            Value::Text(country),
-            Value::Text(code),
-            Value::Text(municipality),
-        ])
+
+        let mut out = Vec::from([Value::Text(country), Value::Text(code)]);
+
+        match self.municipalities.as_ref() {
+            None => out.push(Value::Text(None)),
+            Some(index) => {
+                // Zero when the point sits inside the polygon, otherwise how far
+                // the nearest-boundary fallback had to reach. Past the cutoff the
+                // match counts as no match, so the name and the distance drop out
+                // together rather than leaving a distance with no name.
+                let hit = index
+                    .locate_with_dist(lon, lat)
+                    .filter(|(_, d)| match self.max_municipality_dist_m {
+                        Some(max) => *d <= max,
+                        None => true,
+                    });
+                match hit {
+                    Some((name, d)) => {
+                        out.push(Value::Text(Some(name.clone())));
+                        out.push(Value::Float(d / self.dist_divisor));
+                    }
+                    None => {
+                        out.push(Value::Text(None));
+                        out.push(Value::Float(f64::NAN));
+                    }
+                }
+            }
+        }
+        out
     }
 }
 
@@ -146,6 +198,9 @@ pub fn run(args: PlaceArgs) -> Result<(), Box<dyn Error>> {
         .ok_or("place requires --countries <Natural Earth countries shapefile>")?;
     if args.municipalities.is_none() {
         eprintln!("[seastamp] place: no --municipalities given, the municipality column will be empty");
+        if args.max_municipality_dist.is_some() {
+            eprintln!("[seastamp] place: --max-municipality-dist has no effect without --municipalities");
+        }
     }
     let df = crate::io::read_frame(&args.common.input, args.common.in_format)?;
     let out_path = args
@@ -155,6 +210,19 @@ pub fn run(args: PlaceArgs) -> Result<(), Box<dyn Error>> {
         .unwrap_or_else(|| super::default_output(&args.common.input, "place", args.common.in_format));
 
     let proj = Laea::new(s.proj_lon0, s.proj_lat0);
-    let enr = PlaceEnricher::open(&countries, args.municipalities.as_deref(), s.bbox, proj)?;
+    // The cutoff is given in the output unit; the index measures in meters.
+    let divisor = match args.unit {
+        DistUnit::Km => 1000.0,
+        DistUnit::M => 1.0,
+    };
+    let max_m = args.max_municipality_dist.map(|d| d * divisor);
+    let enr = PlaceEnricher::open(
+        &countries,
+        args.municipalities.as_deref(),
+        s.bbox,
+        proj,
+        divisor,
+        max_m,
+    )?;
     run_module(&enr, df, &s, &out_path, args.common.out_format)
 }

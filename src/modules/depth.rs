@@ -18,6 +18,9 @@
 //! Sign convention: GEBCO elevation is negative below sea level. By default the
 //! output reports the elevation as stored (negative under water); `--positive`
 //! flips the sign so depth reads positive under water (and land reads negative).
+//! A point on land therefore gets a real elevation, not a null, and the sign is
+//! what distinguishes it. `--on-land` makes that explicit in a boolean column,
+//! derived from the raw elevation so it means the same under `--positive`.
 //!
 //! Caveats: only nearest-cell sampling is done (no bilinear interpolation), the
 //! variable is assumed to be `elevation` with dimension order `(lat, lon)`, and
@@ -118,22 +121,27 @@ fn normalize_lon(lon: f64) -> f64 {
 }
 
 pub struct DepthEnricher {
-    // The system HDF5 (serial build) is not guaranteed thread-safe, so reads are
-    // serialized through this mutex even though locations enrich on rayon workers.
-    // A single-cell read is cheap and the location set is already de-duplicated,
-    // so serializing it is not a bottleneck.
+    // Enrichment is single-threaded for this module (see the header), so the
+    // mutex is belt and braces: it also keeps the raw HDF5 call in
+    // silence_hdf5_diagnostics from overlapping a read.
     file: Mutex<netcdf::File>,
     var_name: String,
     lat: Axis,
     lon: Axis,
     column: String,
     positive: bool,
+    on_land: bool,
 }
 
 impl DepthEnricher {
     /// Open a GEBCO NetCDF file and read its `lat`/`lon` axes. Fails if the file
     /// is missing the `lat`, `lon`, or `elevation` variables.
-    pub fn open(path: &Path, column: String, positive: bool) -> Result<Self, Box<dyn Error>> {
+    pub fn open(
+        path: &Path,
+        column: String,
+        positive: bool,
+        on_land: bool,
+    ) -> Result<Self, Box<dyn Error>> {
         silence_hdf5_diagnostics();
         let file = netcdf::open(path)
             .map_err(|e| format!("cannot open GEBCO file {}: {e}", path.display()))?;
@@ -163,6 +171,7 @@ impl DepthEnricher {
             lon,
             column,
             positive,
+            on_land,
         })
     }
 }
@@ -174,14 +183,21 @@ impl Enricher for DepthEnricher {
     }
 
     fn outputs(&self) -> Vec<OutputSpec> {
-        Vec::from([OutputSpec {
+        let mut v = Vec::from([OutputSpec {
             name: self.column.clone(),
             kind: OutputKind::Float,
-        }])
+        }]);
+        if self.on_land {
+            v.push(OutputSpec { name: "on_land".into(), kind: OutputKind::Bool });
+        }
+        v
     }
 
     fn enrich(&self, lon: f64, lat: f64) -> Vec<Value> {
-        let value = match (self.lat.index(lat), self.lon.index(normalize_lon(lon))) {
+        // Raw GEBCO elevation, negative below sea level, before any --positive
+        // flip. `on_land` has to be read off this rather than the reported value,
+        // since --positive inverts what a positive number means.
+        let elevation = match (self.lat.index(lat), self.lon.index(normalize_lon(lon))) {
             (Some(i), Some(j)) => {
                 let file = self.file.lock().expect("depth file mutex poisoned");
                 // Quiet HDF5 before touching NetCDF. Kept under the lock because
@@ -190,15 +206,20 @@ impl Enricher for DepthEnricher {
                 let var = file
                     .variable(&self.var_name)
                     .expect("elevation presence checked in open");
-                match var.get_value::<f64, _>([i, j]) {
-                    Ok(v) if self.positive => -v,
-                    Ok(v) => v,
-                    Err(_) => f64::NAN,
-                }
+                var.get_value::<f64, _>([i, j]).unwrap_or(f64::NAN)
             }
             _ => f64::NAN,
         };
-        Vec::from([Value::Float(value)])
+
+        let reported = if self.positive { -elevation } else { elevation };
+        let mut out = Vec::from([Value::Float(reported)]);
+        if self.on_land {
+            // Null, not false, where there is no reading to judge: an off-grid or
+            // unreadable cell says nothing about whether the point is on land.
+            let flag = if elevation.is_nan() { None } else { Some(elevation >= 0.0) };
+            out.push(Value::Bool(flag));
+        }
+        out
     }
 }
 
@@ -215,6 +236,6 @@ pub fn run(args: DepthArgs) -> Result<(), Box<dyn Error>> {
         .clone()
         .unwrap_or_else(|| super::default_output(&args.common.input, "depth", args.common.in_format));
 
-    let enr = DepthEnricher::open(&data, args.column, args.positive)?;
+    let enr = DepthEnricher::open(&data, args.column, args.positive, args.on_land)?;
     run_module(&enr, df, &s, &out_path, args.common.out_format)
 }
