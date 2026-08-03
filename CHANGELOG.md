@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `depth` no longer segfaults on inputs of more than a handful of points. It now
+  looks up its grid cells on a single thread. The reads were already serialized
+  behind a mutex, but that is not enough for HDF5: a build without thread safety
+  cannot be entered from several threads at all, even when locking guarantees the
+  calls never overlap, because it keeps state that assumes one thread of
+  execution. Spreading the lookups over rayon workers therefore crashed, as a
+  SIGSEGV in release builds and an error-stack assertion in debug ones. Enrichers
+  declare this with a new `Enricher::parallel` returning `false`, and the shared
+  pipeline honors it. Nothing is lost: one lock already made the reads sequential,
+  so there was no parallelism to give up.
+
+  The crash needed a serial HDF5 to appear, which is why it hit the prebuilt
+  release binaries (they vendor the C libraries through `static-netcdf`, which
+  leaves thread safety off) while builds against a thread-safe system
+  `libhdf5-dev` were unaffected. That is also why the test suite never caught it,
+  so `tests/depth.rs` now drives 2000 locations through the parallel path and
+  documents how to run it against the vendored library. Reported against 0.8.0 on
+  a 397 point input, where `-t 1` was the workaround; that workaround is no longer
+  needed.
+
+  One related tightening: `silence_hdf5_diagnostics` calls HDF5 directly, past the
+  lock the `netcdf` crate holds for every netcdf-c call, so it now runs under the
+  file mutex rather than before it.
+
 ## [0.9.0] - 2026-08-03
 
 ### Changed

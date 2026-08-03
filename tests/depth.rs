@@ -61,7 +61,19 @@ fn run_lookup(nc: &std::path::Path, positive: bool, df: DataFrame) -> DataFrame 
         .unwrap()
 }
 
+/// Every case runs from this one test on purpose. The harness gives each `#[test]`
+/// its own thread, and a serial HDF5 build aborts when entered from more than one
+/// thread, so separate test functions made `cargo test --features static-netcdf`
+/// crash at random even though the library code was sound. One test means one
+/// thread touches HDF5 in this binary. A mutex would not do: the calls have to be
+/// on the same thread, not merely non-overlapping.
 #[test]
+fn depth_grid_lookup() {
+    nearest_cell_and_out_of_grid();
+    many_points_do_not_crash_the_grid_reader();
+    positive_flips_sign();
+}
+
 fn nearest_cell_and_out_of_grid() {
     let dir = tempfile::tempdir().unwrap();
     let nc = dir.path().join("grid.nc");
@@ -82,7 +94,33 @@ fn nearest_cell_and_out_of_grid() {
     assert!(b.get(3).map(|v| v.is_nan()).unwrap_or(true)); // lon 100 off grid
 }
 
-#[test]
+/// Regression test for a segfault: enriching a few hundred points crashed, while
+/// a handful got through. The pipeline used to spread locations across rayon
+/// workers, and a serial HDF5 build cannot be entered from more than one thread
+/// even with every call under a mutex, so `depth` now enriches single-threaded.
+///
+/// This only reproduces against a serial HDF5, so it passes either way on a
+/// system HDF5 built thread-safe (Ubuntu's is). To exercise the configuration
+/// that actually crashed, and that the release binaries ship, run it with the
+/// vendored library: `cargo test --features static-netcdf --test depth`.
+fn many_points_do_not_crash_the_grid_reader() {
+    let dir = tempfile::tempdir().unwrap();
+    let nc = dir.path().join("grid.nc");
+    make_grid(&nc);
+
+    // Distinct to 3 decimals so the pipeline keeps them as separate locations,
+    // and inside the grid so each one performs a real HDF5 read.
+    let n = 2000;
+    let lons: Vec<f64> = (0..n).map(|k| 18.0 + (k as f64) * 0.001).collect();
+    let lats: Vec<f64> = (0..n).map(|k| 58.0 + ((k % 2000) as f64) * 0.001).collect();
+    let df = df! { "longitude" => lons, "latitude" => lats }.unwrap();
+
+    let back = run_lookup(&nc, false, df);
+    let b = back.column("bathymetry").unwrap().f64().unwrap();
+    assert_eq!(b.len(), n);
+    assert!(b.into_no_null_iter().all(|v| v < 0.0), "every in-grid cell is negative");
+}
+
 fn positive_flips_sign() {
     let dir = tempfile::tempdir().unwrap();
     let nc = dir.path().join("grid.nc");

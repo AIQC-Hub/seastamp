@@ -17,6 +17,13 @@ every point maps straight to its nearest grid cell by arithmetic and reads the
 single `elevation` cell. Longitudes are normalized to `[-180, 180)`, and points
 off the grid yield a null.
 
+Unlike the other commands, `depth` looks up its points on a single thread, so
+`--threads` does not change how the grid is read. HDF5, which the NetCDF reader
+sits on, is often built without thread safety, and such a build cannot be entered
+from more than one thread even when the calls are locked so they never overlap.
+Nothing is lost by it: the reads were funnelled through one lock in any case, so
+they never ran concurrently.
+
 GEBCO elevation is negative below sea level. By default the value is reported as
 stored (negative under water); `--positive` flips the sign so depth reads
 positive under water and land reads negative.

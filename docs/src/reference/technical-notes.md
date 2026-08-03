@@ -52,6 +52,28 @@ enrichment set itself is only the unique locations, which stays small. For very
 large inputs a streamed two-pass version (collect unique locations, then append
 columns chunk by chunk) is the natural next step, noted in the source.
 
+## Threading and HDF5
+
+Enrichment normally spreads the unique locations across rayon workers. `depth` is
+the exception and runs them on one thread, because it reads through HDF5, which
+is frequently built serial. A serial build is not merely unsafe for overlapping
+calls: it cannot be entered from several threads at all, even under a lock that
+makes the calls strictly sequential. Spreading the reads across workers therefore
+crashed, as a segfault in release builds and an error-stack assertion in debug
+ones. An `Enricher` declares this with `parallel() -> false`.
+
+This only bites where HDF5 lacks thread safety, which is why it showed up in the
+prebuilt release binaries (they vendor the C libraries through `static-netcdf`,
+which leaves thread safety off) and not against a distribution `libhdf5-dev`
+built thread-safe. To exercise that configuration:
+
+```bash
+cargo test --features static-netcdf --test depth
+```
+
+For the same reason all the depth cases live in a single `#[test]`: the harness
+runs each test on its own thread, which is enough to trip a serial HDF5.
+
 ## Parquet writes
 
 Parquet is written single-threaded (`set_parallel(false)`), matching `ctddump`:

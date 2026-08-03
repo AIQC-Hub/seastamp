@@ -45,6 +45,18 @@ pub trait Enricher: Sync {
     /// Compute the values for one unique location. The returned vector must line
     /// up with `outputs()`.
     fn enrich(&self, lon: f64, lat: f64) -> Vec<Value>;
+
+    /// Whether locations may enrich on many threads at once. Default `true`.
+    ///
+    /// A module returns `false` when its backing library cannot be entered from
+    /// more than one thread, whatever the locking. `depth` does: a serial HDF5
+    /// build crashes when read from several threads even with every call under a
+    /// mutex, because the library keeps state that assumes a single thread of
+    /// execution. Serializing costs such a module nothing, since a lock would
+    /// have made the work sequential anyway.
+    fn parallel(&self) -> bool {
+        true
+    }
 }
 
 /// Extract a column as `f64`, mapping nulls to NaN. Casts from any numeric dtype.
@@ -114,11 +126,14 @@ pub fn run_module(
         row_key.push(Some(k));
     }
 
-    // Enrich unique locations in parallel.
-    let results: Vec<Vec<Value>> = uniq
-        .par_iter()
-        .map(|&(lo, la)| enr.enrich(lo, la))
-        .collect();
+    // Enrich unique locations, in parallel unless the module forbids it (see
+    // Enricher::parallel). The serial path stays on this thread throughout, which
+    // is what a module backed by a single-threaded C library needs.
+    let results: Vec<Vec<Value>> = if enr.parallel() {
+        uniq.par_iter().map(|&(lo, la)| enr.enrich(lo, la)).collect()
+    } else {
+        uniq.iter().map(|&(lo, la)| enr.enrich(lo, la)).collect()
+    };
 
     // Expand back to one value per input row and append the columns.
     let mut new_cols: Vec<Series> = Vec::with_capacity(specs.len());
