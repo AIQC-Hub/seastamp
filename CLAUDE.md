@@ -189,9 +189,15 @@ each, matching the README example paths. Caveats baked into it: the GEBCO grid
 is multi-GB and resumes an interrupted download; the GISCO LAU bundle nests one
 zip per projection and only the EPSG 4326 (lon/lat) layer is unpacked, since
 the modules expect lon/lat; the Marine Regions (IHO) download submits the
-site's statistics form, so it requires `--mr-name` / `--mr-email` /
-`--mr-country` (and posts back the form's hidden anti-bot field empty), and it
-verifies the response is a zip, failing loudly when the form rejects it.
+site's statistics form, so it requires every field the form marks required
+(`--mr-name` / `--mr-org` / `--mr-email` / `--mr-country`, plus
+`--mr-category` and `--mr-purpose`, which default to `academia` and `Research`),
+posts back the form's hidden anti-bot field empty, and verifies the response is
+a zip, failing loudly when the form rejects it. The two dropdowns accept only
+fixed values, held in `MR_CATEGORIES` / `MR_PURPOSES` and checked by `check_mr`
+before any download starts; re-scrape them from the form page if Marine Regions
+changes them. Because the details go to a third party and the download accepts
+CC BY-NC-SA 4.0, `show_config` prints them for confirmation first.
 
 `scripts/enrich.sh` (same ctddump-style bash: header doubles as `--help`,
 `log`/`run` tracing) chains several modules over one input, each reading the

@@ -16,7 +16,8 @@ command pages:
 scripts/download_data.sh download gshhg gebco countries lau
 
 # the Marine Regions (IHO) download sits behind a short form
-scripts/download_data.sh --mr-name "Your Name" --mr-email you@example.org \
+scripts/download_data.sh --mr-name "Your Name" \
+  --mr-org "Your Institute" --mr-email you@example.org \
   --mr-country Norway download iho
 ```
 
@@ -29,9 +30,25 @@ Caveats baked into the script:
 - The GEBCO grid is multi-GB; the download resumes if interrupted.
 - The GISCO LAU bundle nests one zip per projection; only the EPSG 4326
   (lon/lat) layer is unpacked, since the commands expect lon/lat.
-- The Marine Regions (IHO) download submits the site's statistics form, so it
-  requires `--mr-name`, `--mr-email`, and `--mr-country`. It verifies the
-  response is a zip and fails loudly if the form rejects the request.
+- The Marine Regions (IHO) download submits the site's statistics form on your
+  behalf, so every field the form marks required has to be supplied:
+  `--mr-name`, `--mr-org`, `--mr-email`, and `--mr-country`, plus
+  `--mr-category` and `--mr-purpose`, which default to `academia` and
+  `Research`. Those two are dropdowns on the form and accept only fixed values,
+  so the script checks them before downloading anything and lists the valid ones
+  if you miss:
+
+  | Option | Accepted values |
+  |--------|-----------------|
+  | `--mr-category` | `academia`, `industry`, `government`, `civil society` |
+  | `--mr-purpose` | `Conservation`, `Data exploration & testing`, `Education & workshops`, `Fisheries`, `Policy & Marine Spatial Planning`, `Mapping & visualisation`, `Maritime transport & cruise planning`, `Industry & offshore activities`, `Research`, `GIS Analysis`, `Personal information`, `Other` |
+
+  `--mr-country` is free text but has to match the form's spelling of the
+  country in English. Because these details go to a third party and the download
+  accepts the dataset licence (CC BY-NC-SA 4.0, non-commercial and share-alike),
+  the script prints exactly what it will submit and waits for confirmation
+  before starting. It also verifies the response is a zip and fails loudly if
+  the form rejects the request.
 
 ## Sources
 

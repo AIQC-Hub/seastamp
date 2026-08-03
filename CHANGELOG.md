@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `scripts/download_data.sh` now supplies every field the Marine Regions form
+  marks required for the IHO download. Organisation was optional in the script
+  though the form requires it, and the user category and purpose dropdowns were
+  hardcoded to `academia` and `Research` with no way to change them, so anyone
+  who was neither could only submit values that misdescribed them. They are now
+  `--mr-org`, `--mr-category`, and `--mr-purpose`. The two dropdowns accept only
+  fixed values, so the script checks them against the form's own lists before
+  downloading anything and prints the valid ones when a value is wrong, rather
+  than letting the request fail after the fact.
+
+### Changed
+
+- `scripts/download_data.sh` shows the Marine Regions form values, and says that
+  proceeding accepts the dataset licence, before it submits anything. These
+  details go to a third party, so it is worth seeing them first. The block is
+  printed with the rest of the configuration ahead of the confirmation prompt,
+  and only when `iho` is among the selected datasets. The licence is also named
+  correctly now: CC BY-NC-SA 4.0, not CC-BY as the script and its help said.
+
 ## [0.10.0] - 2026-08-03
 
 ### Added
