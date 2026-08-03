@@ -2,8 +2,8 @@
 
 [![Latest release](https://img.shields.io/github/v/release/AIQC-Hub/seastamp?label=release)](https://github.com/AIQC-Hub/seastamp/releases/latest)
 
-`seastamp` is a Rust command-line tool that adds geospatial attributes to a
-table of points. Give it a file with `longitude` and `latitude` columns and it
+`seastamp` is a Rust command-line tool that stamps a table of points with sea
+attributes. Give it a file with `longitude` and `latitude` columns and it
 appends any of:
 
 - **coast**: distance to the nearest shoreline (GSHHG).

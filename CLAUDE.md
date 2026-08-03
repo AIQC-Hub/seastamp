@@ -4,8 +4,8 @@ Guidance for Claude Code when working in this repository.
 
 ## Project Overview
 
-`seastamp` is a Rust CLI that enriches a table of `longitude`/`latitude` points
-with geospatial attributes, one per top-level command:
+`seastamp` is a Rust CLI that stamps a table of `longitude`/`latitude` points
+with sea attributes, one per top-level command:
 
 - `coast`: distance to the nearest shoreline (GSHHG shorelines).
 - `depth`: bathymetric depth at the point (GEBCO gridded bathymetry).

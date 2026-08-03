@@ -1,10 +1,10 @@
 # seastamp
 
-**seastamp** is a small, fast command-line tool that adds geospatial
-attributes to a table of points. Give it a file with `longitude` and `latitude`
-columns and it appends any of: distance to the nearest coast, bathymetric depth,
-the sea or ocean name, the nearest country and municipality, or the nearest
-location in a second table you supply.
+**seastamp** is a small, fast command-line tool that stamps a table of points
+with sea attributes. Give it a file with `longitude` and `latitude` columns and
+it appends any of: distance to the nearest coast, bathymetric depth, the sea or
+ocean name, the nearest country and municipality, or the nearest location in a
+second table you supply.
 
 It is written in Rust, uses no PROJ or GDAL (the geometry is hand-rolled and
 pure Rust), and reads and writes Parquet, CSV, TSV, and the gzip variants
