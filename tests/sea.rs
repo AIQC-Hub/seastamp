@@ -2,12 +2,12 @@
 //! containment, the nearest-boundary fallback for points inside no polygon,
 //! cropping of features outside the region, and the GeoJSON open path.
 
-use geoenrich::cli::Format;
-use geoenrich::config::{Settings, BALTIC};
-use geoenrich::geo::vector::Rings;
-use geoenrich::geo::Laea;
-use geoenrich::modules::sea::SeaEnricher;
-use geoenrich::pipeline::run_module;
+use seastamp::cli::Format;
+use seastamp::config::{Settings, BALTIC};
+use seastamp::geo::vector::Rings;
+use seastamp::geo::Laea;
+use seastamp::modules::sea::SeaEnricher;
+use seastamp::pipeline::run_module;
 use polars::prelude::*;
 
 fn settings() -> Settings {

@@ -45,7 +45,7 @@ every module that accepts them (`--region` only to coast, sea, and place).
 
 | Option | Meaning |
 |--------|---------|
-| `--bin PATH` | geoenrich binary (default: `$GEOENRICH_BIN`, else the one on `PATH`, else `./target/release` or `./target/debug`) |
+| `--bin PATH` | seastamp binary (default: `$SEASTAMP_BIN`, else the one on `PATH`, else `./target/release` or `./target/debug`) |
 | `-k, --keep` | Keep the intermediate files (default: remove them) |
 | `-n, --dry-run` | Print the commands without running them |
 

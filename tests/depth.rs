@@ -3,10 +3,10 @@
 //! `--positive` flip, and out-of-grid points yielding NaN. Building a tiny grid
 //! in the test avoids needing the multi-gigabyte real GEBCO file.
 
-use geoenrich::cli::Format;
-use geoenrich::config::{Settings, BALTIC};
-use geoenrich::modules::depth::DepthEnricher;
-use geoenrich::pipeline::run_module;
+use seastamp::cli::Format;
+use seastamp::config::{Settings, BALTIC};
+use seastamp::modules::depth::DepthEnricher;
+use seastamp::pipeline::run_module;
 use polars::prelude::*;
 
 /// Write a 3x4 grid: lat = [58, 59, 60], lon = [18, 19, 20, 21], elevation
@@ -15,7 +15,7 @@ use polars::prelude::*;
 fn make_grid(path: &std::path::Path) {
     // Silence HDF5's error-stack printing before writing: netcdf-c probes for
     // optional attributes here too, and this write happens before any open().
-    geoenrich::modules::depth::silence_hdf5_diagnostics();
+    seastamp::modules::depth::silence_hdf5_diagnostics();
 
     let lats = [58.0f64, 59.0, 60.0];
     let lons = [18.0f64, 19.0, 20.0, 21.0];

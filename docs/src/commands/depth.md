@@ -3,7 +3,7 @@
 Bathymetric depth at each point, from a GEBCO gridded NetCDF file.
 
 ```bash
-geoenrich depth <INPUT> --data <GEBCO.nc> [OPTIONS]
+seastamp depth <INPUT> --data <GEBCO.nc> [OPTIONS]
 ```
 
 Appends one column, `bathymetry` (rename with `--column`), holding the GEBCO
@@ -38,7 +38,7 @@ Beyond the [shared options](../reference/configuration.md):
 
 ```bash
 # Reading and writing gzipped CSV
-geoenrich depth cores.csv.gz \
+seastamp depth cores.csv.gz \
   --data ./data/gebco/GEBCO_2024_sub_ice.nc \
   --positive -o cores.depth.csv.gz
 ```

@@ -3,7 +3,7 @@
 Sea or ocean name at each point, from the IHO Sea Areas polygons.
 
 ```bash
-geoenrich sea <INPUT> --data <IHO> [OPTIONS]
+seastamp sea <INPUT> --data <IHO> [OPTIONS]
 ```
 
 Appends one column, `sea_name` (rename with `--column`), holding the name of the
@@ -34,7 +34,7 @@ Beyond the [shared options](../reference/configuration.md) and the
 ## Example
 
 ```bash
-geoenrich sea cores.parquet --region norway \
+seastamp sea cores.parquet --region norway \
   --data ./data/iho/iho_sea_areas.geojson
 ```
 

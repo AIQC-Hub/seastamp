@@ -3,7 +3,7 @@
 Nearest location in a second table you supply, with the distance to it.
 
 ```bash
-geoenrich nearest <INPUT> --to <REFERENCE> [OPTIONS]
+seastamp nearest <INPUT> --to <REFERENCE> [OPTIONS]
 ```
 
 Unlike the other commands, the reference data is not a bundled dataset but a
@@ -51,7 +51,7 @@ Beyond the [shared options](../reference/configuration.md):
 
 ```bash
 # Nearest fish farm to each measurement, distance in km
-geoenrich nearest cores.parquet --to farms.parquet \
+seastamp nearest cores.parquet --to farms.parquet \
   --name-field farm_name -o cores.nearest.parquet
 ```
 

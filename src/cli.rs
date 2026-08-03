@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "geoenrich",
+    name = "seastamp",
     version,
     about = "Enrich longitude/latitude points with geospatial attributes"
 )]

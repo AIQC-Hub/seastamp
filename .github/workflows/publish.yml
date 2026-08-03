@@ -160,10 +160,10 @@ jobs:
       - name: Stage the archive
         shell: bash
         run: |
-          name="geoenrich-${GITHUB_REF_NAME}-${{ matrix.target }}"
+          name="seastamp-${GITHUB_REF_NAME}-${{ matrix.target }}"
           mkdir -p "dist/$name"
-          cp target/release/geoenrich "dist/$name/"
-          strip "dist/$name/geoenrich" || echo "strip unavailable, shipping unstripped"
+          cp target/release/seastamp "dist/$name/"
+          strip "dist/$name/seastamp" || echo "strip unavailable, shipping unstripped"
           cp -R scripts "dist/$name/"
           cp README.md LICENSE CHANGELOG.md "dist/$name/"
           tar -C dist -czf "$name.tar.gz" "$name"
@@ -171,8 +171,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: geoenrich-${{ matrix.target }}
-          path: geoenrich-*.tar.gz
+          name: seastamp-${{ matrix.target }}
+          path: seastamp-*.tar.gz
           if-no-files-found: error
 
   # Attaches the archives to the GitHub Release. Tag runs only: a manual dispatch
@@ -196,7 +196,7 @@ jobs:
       - name: Checksums
         run: |
           cd dist
-          sha256sum geoenrich-*.tar.gz > SHA256SUMS
+          sha256sum seastamp-*.tar.gz > SHA256SUMS
           cat SHA256SUMS
 
       - name: Extract the CHANGELOG section for this version
@@ -220,6 +220,6 @@ jobs:
           fi
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "geoenrich ${GITHUB_REF_NAME#v}" \
+            --title "seastamp ${GITHUB_REF_NAME#v}" \
             "${notes[@]}" \
-            dist/geoenrich-*.tar.gz dist/SHA256SUMS
+            dist/seastamp-*.tar.gz dist/SHA256SUMS

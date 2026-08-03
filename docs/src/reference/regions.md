@@ -27,7 +27,7 @@ The default is `global` (the whole globe).
 Any preset value can be overridden with explicit bounds:
 
 ```bash
-geoenrich coast cores.parquet --data ./data/gshhg/... \
+seastamp coast cores.parquet --data ./data/gshhg/... \
   --min-lon 8 --max-lon 31 --min-lat 53 --max-lat 66
 ```
 

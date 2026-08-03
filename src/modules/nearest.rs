@@ -108,7 +108,7 @@ impl NearestEnricher {
         let enr = Self::from_points(points, unit, name_column, dist_column);
         if enr.names.is_empty() {
             eprintln!(
-                "[geoenrich] warning: reference table '{}' has no usable location; \
+                "[seastamp] warning: reference table '{}' has no usable location; \
                  nearest name/distance will be null",
                 name_field
             );

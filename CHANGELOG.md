@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Renamed the project from `geoenrich` to `seastamp`. The name `geoenrich` was
+  already taken by a Copernicus Marine tool that enriches species occurrence
+  data with ocean variables, which is close enough to this tool's purpose to be
+  confusing. The rename covers the crate, the binary, the library path used by
+  `use seastamp::...`, the `[seastamp]` log prefix, the `SEASTAMP_BIN`
+  environment variable read by `scripts/enrich.sh`, and the repository and
+  documentation URLs. Commands, flags, configuration keys, and output column
+  names are all unchanged, so existing invocations work by swapping the binary
+  name. Users of the old crate should install `seastamp` instead of
+  `geoenrich`; the `geoenrich` crate stops at 0.8.0.
+
 ## [0.8.0] - 2026-07-24
 
 ### Added
@@ -41,7 +56,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Project documentation site built with mdBook and published to GitHub Pages
-  at <https://aiqc-hub.github.io/geoenrich/>: an introduction, installation, a
+  at <https://aiqc-hub.github.io/seastamp/>: an introduction, installation, a
   page per command, reference pages (regions, output columns, configuration,
   technical notes), and a reference-datasets page. A Pages workflow rebuilds
   and deploys it on every change to `docs/`.
@@ -93,7 +108,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   form, so it needs `--mr-name`, `--mr-email`, and `--mr-country`, and it
   fails loudly when the form rejects the request instead of leaving a broken
   archive. The GISCO LAU bundle's EPSG 4326 (lon/lat) shapefile is unpacked
-  from its nested zip, since geoenrich needs lon/lat coordinates.
+  from its nested zip, since seastamp needs lon/lat coordinates.
 - New `--overwrite` flag on every command: when an output column already
   exists in the input, it is replaced in place (keeping its position and
   getting the output dtype) instead of the run failing. Without the flag a

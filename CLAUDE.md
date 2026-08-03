@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository.
 
 ## Project Overview
 
-`geoenrich` is a Rust CLI that enriches a table of `longitude`/`latitude` points
+`seastamp` is a Rust CLI that enriches a table of `longitude`/`latitude` points
 with geospatial attributes, one per top-level command:
 
 - `coast`: distance to the nearest shoreline (GSHHG shorelines).

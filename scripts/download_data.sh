@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# download_data.sh: download the geoenrich reference datasets into a local
+# download_data.sh: download the seastamp reference datasets into a local
 # data/ tree, one sub-directory per source, and unpack them so the paths in
 # the README examples work as-is.
 #
@@ -25,7 +25,7 @@
 #   countries   Natural Earth 10m admin 0 countries, for `place --countries`.
 #   lau         Eurostat GISCO LAU boundaries, for `place --municipalities`.
 #               The 4326 (lon/lat) shapefile is unpacked from the bundle;
-#               geoenrich needs lon/lat coordinates.
+#               seastamp needs lon/lat coordinates.
 #
 # Options (may appear anywhere on the command line):
 #   -d, --data DIR    root of the data tree  (default: data)
@@ -238,7 +238,7 @@ download_lau() {
   mkdir -p "$dir"
   fetch "https://gisco-services.ec.europa.eu/distribution/v2/lau/download/$zip" "$dir/$zip"
   unpack "$dir/$zip" "$dir"
-  # The bundle nests one zip per layer and projection; geoenrich needs the
+  # The bundle nests one zip per layer and projection; seastamp needs the
   # lon/lat (EPSG 4326) polygon layer.
   local inner="$dir/LAU_RG_01M_${LAU_YEAR}_4326.shp.zip"
   if [[ ! -e "$inner" ]]; then

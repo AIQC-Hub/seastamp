@@ -1,4 +1,4 @@
-//! geoenrich: enrich longitude/latitude points with geospatial attributes.
+//! seastamp: enrich longitude/latitude points with geospatial attributes.
 //!
 //! Five modules add columns to a table of points, keyed only on `longitude` and
 //! `latitude`:

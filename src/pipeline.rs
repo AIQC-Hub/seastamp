@@ -166,7 +166,7 @@ pub fn run_module(
         df.hstack(&new_cols)?
     };
     eprintln!(
-        "[geoenrich] {} rows, {} unique locations -> {}",
+        "[seastamp] {} rows, {} unique locations -> {}",
         n,
         uniq.len(),
         out_path.display()

@@ -2,9 +2,9 @@
 //! it verifies de-duplication of rounded locations, parallel enrichment, the
 //! join back to every row, and round-tripping through Parquet.
 
-use geoenrich::cli::Format;
-use geoenrich::config::{Settings, BALTIC};
-use geoenrich::pipeline::{run_module, Enricher, OutputKind, OutputSpec, Value};
+use seastamp::cli::Format;
+use seastamp::config::{Settings, BALTIC};
+use seastamp::pipeline::{run_module, Enricher, OutputKind, OutputSpec, Value};
 use polars::prelude::*;
 
 /// Appends a float (lon + lat) and a text label, so both column kinds are tested.

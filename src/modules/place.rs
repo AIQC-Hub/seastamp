@@ -145,7 +145,7 @@ pub fn run(args: PlaceArgs) -> Result<(), Box<dyn Error>> {
         .countries
         .ok_or("place requires --countries <Natural Earth countries shapefile>")?;
     if args.municipalities.is_none() {
-        eprintln!("[geoenrich] place: no --municipalities given, the municipality column will be empty");
+        eprintln!("[seastamp] place: no --municipalities given, the municipality column will be empty");
     }
     let df = crate::io::read_frame(&args.common.input, args.common.in_format)?;
     let out_path = args

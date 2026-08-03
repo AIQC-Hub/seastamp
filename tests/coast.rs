@@ -3,11 +3,11 @@
 //! projected distance tracks the great-circle distance, the km/m unit switch,
 //! and that segments outside the region-plus-margin box are cropped away.
 
-use geoenrich::cli::{DistUnit, Format};
-use geoenrich::config::{Settings, BALTIC};
-use geoenrich::geo::{haversine_m, Laea};
-use geoenrich::modules::coast::CoastEnricher;
-use geoenrich::pipeline::run_module;
+use seastamp::cli::{DistUnit, Format};
+use seastamp::config::{Settings, BALTIC};
+use seastamp::geo::{haversine_m, Laea};
+use seastamp::modules::coast::CoastEnricher;
+use seastamp::pipeline::run_module;
 use polars::prelude::*;
 
 fn settings() -> Settings {

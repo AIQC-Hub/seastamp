@@ -1,12 +1,12 @@
 [package]
-name = "geoenrich"
+name = "seastamp"
 version = "0.8.0"
 edition = "2021"
 license = "MIT"
 description = "Enrich longitude/latitude points with coast distance, bathymetric depth, sea name, and nearest country/municipality"
-repository = "https://github.com/AIQC-Hub/geoenrich"
-homepage = "https://aiqc-hub.github.io/geoenrich/"
-documentation = "https://aiqc-hub.github.io/geoenrich/"
+repository = "https://github.com/AIQC-Hub/seastamp"
+homepage = "https://aiqc-hub.github.io/seastamp/"
+documentation = "https://aiqc-hub.github.io/seastamp/"
 readme = "README.md"
 keywords = ["geospatial", "gis", "oceanography", "parquet", "cli"]
 categories = ["command-line-utilities", "science"]
@@ -41,7 +41,7 @@ tempfile = "3"
 # Build HDF5 and netCDF from source instead of linking the system libraries.
 # Only needed where those libraries cannot be installed: the prebuilt release
 # binaries (so the archive needs no system libraries) and docs.rs. Normal builds
-# and `cargo install geoenrich` should leave it off and install libhdf5-dev /
+# and `cargo install seastamp` should leave it off and install libhdf5-dev /
 # libnetcdf-dev instead, which is far quicker.
 static-netcdf = ["netcdf/static"]
 

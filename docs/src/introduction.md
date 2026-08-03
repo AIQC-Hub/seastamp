@@ -1,6 +1,6 @@
-# geoenrich
+# seastamp
 
-**geoenrich** is a small, fast command-line tool that adds geospatial
+**seastamp** is a small, fast command-line tool that adds geospatial
 attributes to a table of points. Give it a file with `longitude` and `latitude`
 columns and it appends any of: distance to the nearest coast, bathymetric depth,
 the sea or ocean name, the nearest country and municipality, or the nearest
@@ -32,11 +32,11 @@ because only the distinct positions are ever looked up.
 
 ```bash
 # Distance to the nearest coast, in kilometers
-geoenrich coast cores.parquet \
+seastamp coast cores.parquet \
   --data ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f
 
 # Nearest fish farm to each measurement
-geoenrich nearest cores.parquet --to farms.parquet --name-field farm_name
+seastamp nearest cores.parquet --to farms.parquet --name-field farm_name
 ```
 
 New here? Start with [Installation](./installation.md), skim the

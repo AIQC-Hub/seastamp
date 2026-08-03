@@ -3,7 +3,7 @@
 Distance to the nearest shoreline, from GSHHG shoreline polygons.
 
 ```bash
-geoenrich coast <INPUT> --data <GSHHG> [OPTIONS]
+seastamp coast <INPUT> --data <GSHHG> [OPTIONS]
 ```
 
 Appends one column, `dist_to_coast` (rename with `--column`), holding the
@@ -34,7 +34,7 @@ Beyond the [shared options](../reference/configuration.md) and the
 ## Example
 
 ```bash
-geoenrich coast cores.parquet \
+seastamp coast cores.parquet \
   --data ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f \
   --unit km -o cores.coast.parquet
 ```

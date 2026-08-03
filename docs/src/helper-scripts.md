@@ -2,7 +2,7 @@
 
 The `scripts/` directory holds two bash helpers that sit alongside the CLI: one
 to fetch the reference datasets, one to run several modules over an input in a
-single pass. Neither is required to use geoenrich, but together they cover the
+single pass. Neither is required to use seastamp, but together they cover the
 "get the data, then enrich" workflow end to end.
 
 Both follow the same conventions:
@@ -47,6 +47,6 @@ per-module and common options, and how the intermediate files are handled.
 ## Requirements
 
 `download_data.sh` needs `curl` and `unzip` on `PATH`. `enrich.sh` needs a built
-`geoenrich` binary: it uses `$GEOENRICH_BIN` if set, else the one on `PATH`, else
+`seastamp` binary: it uses `$SEASTAMP_BIN` if set, else the one on `PATH`, else
 a `./target/release` or `./target/debug` build in the repository (pass `--bin` to
 point elsewhere).

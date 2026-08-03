@@ -1,8 +1,8 @@
-# geoenrich
+# seastamp
 
-[![Latest release](https://img.shields.io/github/v/release/AIQC-Hub/geoenrich?label=release)](https://github.com/AIQC-Hub/geoenrich/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/AIQC-Hub/seastamp?label=release)](https://github.com/AIQC-Hub/seastamp/releases/latest)
 
-`geoenrich` is a Rust command-line tool that adds geospatial attributes to a
+`seastamp` is a Rust command-line tool that adds geospatial attributes to a
 table of points. Give it a file with `longitude` and `latitude` columns and it
 appends any of:
 
@@ -30,14 +30,14 @@ with millions of rows but few distinct positions is cheap to enrich.
 ### Prebuilt binary
 
 Each release attaches prebuilt archives for Linux and macOS (x86_64 and arm64)
-to its [GitHub release](https://github.com/AIQC-Hub/geoenrich/releases/latest).
+to its [GitHub release](https://github.com/AIQC-Hub/seastamp/releases/latest).
 They bundle HDF5 and netCDF, so they need no system libraries: download, unpack,
 and run. The helper scripts ship inside the archive.
 
 ### From crates.io
 
 ```bash
-cargo install geoenrich
+cargo install seastamp
 ```
 
 This builds the `depth` command against the system HDF5 / NetCDF libraries, so
@@ -47,7 +47,7 @@ install their dev headers first (see below).
 
 ```bash
 cargo build --release
-# binary at target/release/geoenrich
+# binary at target/release/seastamp
 ```
 
 The `depth` command reads GEBCO NetCDF and links the HDF5 / NetCDF C libraries,
@@ -66,7 +66,7 @@ release archives do), add `--features static-netcdf` (this needs `cmake`).
 ## Usage
 
 ```bash
-geoenrich <command> <input> [options]
+seastamp <command> <input> [options]
 ```
 
 Every command shares these options:
@@ -100,29 +100,29 @@ default or meters with `--unit m`.
 
 ```bash
 # Distance to coast, GSHHG resolution 'f', result in kilometers
-geoenrich coast cores.parquet \
+seastamp coast cores.parquet \
   --data ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f \
   --unit km -o cores.coast.parquet
 
 # Bathymetric depth from a GEBCO grid, reading and writing gzipped CSV
-geoenrich depth cores.csv.gz --data ./data/gebco/GEBCO_2024_sub_ice.nc \
+seastamp depth cores.csv.gz --data ./data/gebco/GEBCO_2024_sub_ice.nc \
   -o cores.depth.csv.gz
 
 # Sea name, cropping the reference data to the Norway region
-geoenrich sea cores.parquet --region norway \
+seastamp sea cores.parquet --region norway \
   --data ./data/iho/iho_sea_areas.geojson
 
 # Nearest country and municipality
-geoenrich place cores.parquet \
+seastamp place cores.parquet \
   --countries ./data/naturalearth/ne_10m_admin_0_countries.shp \
   --municipalities ./data/gisco/lau.shp
 
 # Nearest fish farm to each measurement, distance in km
-geoenrich nearest cores.parquet --to farms.parquet \
+seastamp nearest cores.parquet --to farms.parquet \
   --name-field farm_name -o cores.nearest.parquet
 ```
 
-Run `geoenrich <command> --help` for the full interface.
+Run `seastamp <command> --help` for the full interface.
 
 To run several modules over one input and get a single file with all their new
 columns, use `scripts/enrich.sh`, which chains the selected modules and removes

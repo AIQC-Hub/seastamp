@@ -3,11 +3,11 @@
 //! distance matches the great-circle distance globally (even across the world),
 //! the km/m unit switch, and that an empty reference set yields null/NaN.
 
-use geoenrich::cli::{DistUnit, Format};
-use geoenrich::config::{Settings, GLOBAL};
-use geoenrich::geo::haversine_m;
-use geoenrich::modules::nearest::NearestEnricher;
-use geoenrich::pipeline::run_module;
+use seastamp::cli::{DistUnit, Format};
+use seastamp::config::{Settings, GLOBAL};
+use seastamp::geo::haversine_m;
+use seastamp::modules::nearest::NearestEnricher;
+use seastamp::pipeline::run_module;
 use polars::prelude::*;
 
 fn settings() -> Settings {

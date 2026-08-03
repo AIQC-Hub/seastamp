@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# enrich.sh: run several geoenrich modules over one input in sequence, so the
+# enrich.sh: run several seastamp modules over one input in sequence, so the
 # result is a single file carrying the new columns of every selected module.
 #
 # Each module is chained onto the previous one's output (its columns accumulate).
@@ -31,7 +31,7 @@
 #   --nearest-unit km|m   distance unit for nearest (default: km)
 #
 # Common options (applied to every module that accepts them):
-#   --region NAME         region preset (coast, sea, place). See geoenrich --help
+#   --region NAME         region preset (coast, sea, place). See seastamp --help
 #   --lon-col NAME        longitude column   (default: longitude)
 #   --lat-col NAME        latitude column    (default: latitude)
 #   --decimals N          rounding before de-duplication  (default: 3)
@@ -39,8 +39,8 @@
 #   --in-format FMT       format of <input> (default: inferred from extension)
 #
 # Other options:
-#   --bin PATH            geoenrich binary (default: $GEOENRICH_BIN, else the
-#                         one on PATH, else ./target/release|debug/geoenrich)
+#   --bin PATH            seastamp binary (default: $SEASTAMP_BIN, else the
+#                         one on PATH, else ./target/release|debug/seastamp)
 #   -k, --keep            keep the intermediate files (default: remove them)
 #   -n, --dry-run         print the commands without running them
 #   -h, --help            show this help
@@ -65,7 +65,7 @@ NEAREST_NAME_FIELD=name
 NEAREST_UNIT=km
 REGION=
 LON_COL=; LAT_COL=; DECIMALS=; THREADS=; IN_FORMAT=
-BIN="${GEOENRICH_BIN:-}"
+BIN="${SEASTAMP_BIN:-}"
 KEEP=0
 DRYRUN=0
 
@@ -135,21 +135,21 @@ run() {
   "$@"
 }
 
-# ---- Resolve the geoenrich binary ----------------------------------------
-# Use --bin / $GEOENRICH_BIN if given; else geoenrich on PATH; else a build in
+# ---- Resolve the seastamp binary ----------------------------------------
+# Use --bin / $SEASTAMP_BIN if given; else seastamp on PATH; else a build in
 # this repo (release preferred over debug), so the script works from a checkout.
 resolve_bin() {
   if [[ -n "$BIN" ]]; then
     command -v "$BIN" >/dev/null 2>&1 || [[ -x "$BIN" ]] || {
-      echo "geoenrich binary not found: $BIN" >&2; return 1; }
+      echo "seastamp binary not found: $BIN" >&2; return 1; }
     return 0
   fi
-  if command -v geoenrich >/dev/null 2>&1; then BIN=geoenrich; return 0; fi
+  if command -v seastamp >/dev/null 2>&1; then BIN=seastamp; return 0; fi
   local root; root="$(cd "$(dirname "$0")/.." && pwd)"
-  if   [[ -x "$root/target/release/geoenrich" ]]; then BIN="$root/target/release/geoenrich"
-  elif [[ -x "$root/target/debug/geoenrich"   ]]; then BIN="$root/target/debug/geoenrich"
+  if   [[ -x "$root/target/release/seastamp" ]]; then BIN="$root/target/release/seastamp"
+  elif [[ -x "$root/target/debug/seastamp"   ]]; then BIN="$root/target/debug/seastamp"
   else
-    echo "geoenrich not found: build it (cargo build --release) or pass --bin" >&2
+    echo "seastamp not found: build it (cargo build --release) or pass --bin" >&2
     return 1
   fi
 }
@@ -218,9 +218,9 @@ main() {
   # label instead of creating one.
   if [[ ${#modules[@]} -gt 1 ]]; then
     if [[ "$DRYRUN" == 1 ]]; then
-      TMP="${TMPDIR:-/tmp}/geoenrich.DRYRUN"
+      TMP="${TMPDIR:-/tmp}/seastamp.DRYRUN"
     else
-      TMP="$(mktemp -d "${TMPDIR:-/tmp}/geoenrich.XXXXXX")"
+      TMP="$(mktemp -d "${TMPDIR:-/tmp}/seastamp.XXXXXX")"
       log "intermediate files in $TMP ($([[ "$KEEP" == 1 ]] && echo kept || echo removed on exit))"
     fi
   fi

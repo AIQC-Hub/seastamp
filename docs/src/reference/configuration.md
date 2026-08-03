@@ -44,7 +44,7 @@ proj_lat0 = 59.5
 ```
 
 ```bash
-geoenrich coast cores.parquet --data ./data/gshhg/... -c region.toml
+seastamp coast cores.parquet --data ./data/gshhg/... -c region.toml
 ```
 
 ## Rounding and de-duplication

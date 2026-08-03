@@ -1,5 +1,5 @@
 [book]
-title = "geoenrich"
+title = "seastamp"
 description = "Enrich longitude/latitude points with coast distance, bathymetric depth, sea name, and nearest country/municipality."
 authors = ["AIQC-Hub"]
 language = "en"
@@ -8,9 +8,9 @@ src = "src"
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "navy"
-git-repository-url = "https://github.com/AIQC-Hub/geoenrich"
-edit-url-template = "https://github.com/AIQC-Hub/geoenrich/edit/main/docs/{path}"
-site-url = "/geoenrich/"
+git-repository-url = "https://github.com/AIQC-Hub/seastamp"
+edit-url-template = "https://github.com/AIQC-Hub/seastamp/edit/main/docs/{path}"
+site-url = "/seastamp/"
 
 [output.html.fold]
 enable = true

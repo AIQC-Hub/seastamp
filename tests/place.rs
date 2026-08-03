@@ -2,12 +2,12 @@
 //! containment on land, nearest country offshore, the ISO code passthrough,
 //! and the empty municipality column when no municipality set is given.
 
-use geoenrich::cli::Format;
-use geoenrich::config::{Settings, BALTIC};
-use geoenrich::geo::vector::Rings;
-use geoenrich::geo::Laea;
-use geoenrich::modules::place::PlaceEnricher;
-use geoenrich::pipeline::run_module;
+use seastamp::cli::Format;
+use seastamp::config::{Settings, BALTIC};
+use seastamp::geo::vector::Rings;
+use seastamp::geo::Laea;
+use seastamp::modules::place::PlaceEnricher;
+use seastamp::pipeline::run_module;
 use polars::prelude::*;
 
 fn settings() -> Settings {

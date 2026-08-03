@@ -4,7 +4,7 @@ Nearest country and municipality, from Natural Earth countries and, optionally,
 Eurostat GISCO LAU municipalities.
 
 ```bash
-geoenrich place <INPUT> --countries <NE> [--municipalities <GISCO>] [OPTIONS]
+seastamp place <INPUT> --countries <NE> [--municipalities <GISCO>] [OPTIONS]
 ```
 
 Appends three columns:
@@ -39,7 +39,7 @@ Beyond the [shared options](../reference/configuration.md) and the
 ## Example
 
 ```bash
-geoenrich place cores.parquet \
+seastamp place cores.parquet \
   --countries ./data/naturalearth/ne_10m_admin_0_countries.shp \
   --municipalities ./data/gisco/lau.shp
 ```

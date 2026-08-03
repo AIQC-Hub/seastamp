@@ -1,5 +1,5 @@
 use clap::Parser;
-use geoenrich::cli::Cli;
+use seastamp::cli::Cli;
 
 fn main() {
     // Rayon and Polars spawn worker threads with a small default stack that can
@@ -11,7 +11,7 @@ fn main() {
     }
 
     let cli = Cli::parse();
-    if let Err(e) = geoenrich::run(cli) {
+    if let Err(e) = seastamp::run(cli) {
         eprintln!("Error: {}", e);
         std::process::exit(1);
     }
