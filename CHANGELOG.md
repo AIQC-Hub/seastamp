@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `scripts/download_data.sh` asks for the Marine Regions details it needs
+  instead of only refusing to continue. A missing name, organisation, email, or
+  country is prompted for, and the user category and purpose are offered as
+  numbered menus, so their exact spellings (`civil society`,
+  `Data exploration & testing`) do not have to be typed or looked up. This makes
+  `scripts/download_data.sh download iho` a workable command on its own.
+
+  Prompting needs a terminal to ask at, so it is skipped when stdin is not one,
+  and under `-y/--yes`, which asks to start immediately. Both keep the previous
+  behavior of failing and naming the missing options, which is what a CI run or
+  a pipeline needs. The answers are echoed in the confirmation summary before
+  anything is submitted, as before.
+
+- `--mr-email` is checked for an `@` and a dot before use. The form's field is
+  `type=email` and rejects a malformed address with an HTML page, which is a
+  confusing way to find out about a typo.
+
 ## [0.10.1] - 2026-08-03
 
 ### Fixed
