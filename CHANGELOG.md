@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Reworded how the project describes itself, which still read as it did under
+  the old `geoenrich` name: a tool that "adds geospatial attributes". That named
+  neither this package nor what makes it distinct. The crate description, the
+  `seastamp --help` header, the crate-level documentation that forms the docs.rs
+  front page, the README, the documentation site introduction and its metadata,
+  and the CLAUDE.md overview now agree on stamping points with sea attributes.
+  Wording only: no command, flag, or output changed.
+
+- The crate description also lists `nearest` at last. It has found the closest
+  location in a caller-supplied table since 0.5.0, but the description still
+  named only the other four commands.
+
 ## [0.11.0] - 2026-08-04
 
 ### Added
