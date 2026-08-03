@@ -13,7 +13,7 @@ Every command accepts the same input, output, and pipeline options:
 | `--lon-col <NAME>` | `longitude` | Longitude column |
 | `--lat-col <NAME>` | `latitude` | Latitude column |
 | `--decimals <N>` | `3` | Rounding applied before de-duplicating |
-| `-t, --threads <N>` | all cores | Worker threads |
+| `-t, --threads <N>` | all cores | Worker threads. `depth` always looks up its grid on one thread, see [depth](../commands/depth.md) |
 | `-c, --config <TOML>` | none | Config file (CLI flags override it) |
 
 The `coast`, `sea`, and `place` commands also take the

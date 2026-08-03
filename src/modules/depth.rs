@@ -5,9 +5,15 @@
 //! and spacing, then map every point straight to the enclosing cell by
 //! arithmetic. That is O(1) per point and exact to the grid. The `netcdf` crate
 //! (linking HDF5, as ctddump already does) reads a single `elevation` cell per
-//! location, so the whole grid never needs to be resident. Because `File` is
-//! `Sync` (the crate serializes the underlying C calls), locations enrich in
-//! parallel over one open file.
+//! location, so the whole grid never needs to be resident.
+//!
+//! Unlike the other modules this one enriches on a single thread
+//! ([`Enricher::parallel`] returns `false`). HDF5 is commonly built serial, and a
+//! serial build cannot be entered from more than one thread even when every call
+//! is under a mutex: it keeps state that assumes one thread of execution, and
+//! reading a grid from rayon workers crashed (SIGSEGV in release, an error-stack
+//! assertion in debug). Nothing is lost, because the reads were already funnelled
+//! through one mutex and so never ran concurrently anyway.
 //!
 //! Sign convention: GEBCO elevation is negative below sea level. By default the
 //! output reports the elevation as stored (negative under water); `--positive`
@@ -66,12 +72,18 @@ impl Axis {
 /// gracefully. This disables that automatic printing; real errors still surface
 /// through the `Result` return values.
 ///
-/// HDF5's auto-print setting is per thread, so this must run on every thread that
-/// touches NetCDF, not just once per process. The `thread_local` guard makes the
-/// FFI call at most once per thread. [`DepthEnricher::open`] and every
-/// [`DepthEnricher::enrich`] (which runs on rayon workers) call it, so the whole
-/// read path is covered. It is public so code that writes NetCDF before opening
-/// an enricher (for example a test that builds a grid) can silence it too.
+/// HDF5's auto-print setting is per thread on a thread-safe build, so this runs
+/// on every thread that touches NetCDF rather than once per process. The
+/// `thread_local` guard makes the FFI call at most once per thread. It is public
+/// so code that writes NetCDF before opening an enricher (for example a test that
+/// builds a grid) can silence it too.
+///
+/// Safety: this reaches past the `netcdf` crate straight into HDF5, so it is not
+/// covered by the global lock that crate holds for every netcdf-c call. Call it
+/// only from a thread that is entitled to be inside HDF5, and with no other
+/// thread inside NetCDF. Both callers here satisfy that: enrichment for this
+/// module is single-threaded, and [`DepthEnricher::enrich`] additionally holds
+/// the file mutex across the call.
 pub fn silence_hdf5_diagnostics() {
     thread_local! {
         static SILENCED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
@@ -156,6 +168,11 @@ impl DepthEnricher {
 }
 
 impl Enricher for DepthEnricher {
+    /// HDF5 must be entered from one thread only; see the module header.
+    fn parallel(&self) -> bool {
+        false
+    }
+
     fn outputs(&self) -> Vec<OutputSpec> {
         Vec::from([OutputSpec {
             name: self.column.clone(),
@@ -164,12 +181,12 @@ impl Enricher for DepthEnricher {
     }
 
     fn enrich(&self, lon: f64, lat: f64) -> Vec<Value> {
-        // enrich runs on rayon workers; HDF5 auto-print is per thread, so quiet
-        // each worker before it touches NetCDF.
-        silence_hdf5_diagnostics();
         let value = match (self.lat.index(lat), self.lon.index(normalize_lon(lon))) {
             (Some(i), Some(j)) => {
                 let file = self.file.lock().expect("depth file mutex poisoned");
+                // Quiet HDF5 before touching NetCDF. Kept under the lock because
+                // it calls HDF5 directly, bypassing the netcdf crate's own lock.
+                silence_hdf5_diagnostics();
                 let var = file
                     .variable(&self.var_name)
                     .expect("elevation presence checked in open");

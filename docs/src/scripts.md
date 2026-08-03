@@ -41,7 +41,8 @@ does not matter, since each adds distinct columns.
 
 `--region`, `--lon-col`, `--lat-col`, `--decimals`, and `--threads` are passed to
 every module that accepts them (`--region` only to coast, sea, and place).
-`--in-format` describes the original input. Other options:
+`--threads` reaches `depth` too, but not its grid lookup, which always runs on one
+thread. `--in-format` describes the original input. Other options:
 
 | Option | Meaning |
 |--------|---------|
