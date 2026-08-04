@@ -212,7 +212,7 @@ impl Enricher for PlaceEnricher {
 }
 
 pub fn run(args: PlaceArgs) -> Result<(), Box<dyn Error>> {
-    let s: Settings = resolve(&args.common, Some(&args.region))?;
+    let mut s: Settings = resolve(&args.common, Some(&args.region))?;
     let countries = args
         .countries
         .ok_or("place requires --countries <Natural Earth countries shapefile>")?;
@@ -228,6 +228,11 @@ pub fn run(args: PlaceArgs) -> Result<(), Box<dyn Error>> {
         .output
         .clone()
         .unwrap_or_else(|| super::default_output(&args.common.input, "place", args.common.in_format));
+
+    // --region auto needs the points, so the region settles here, after the
+    // table is read and before any reference data is cropped to it.
+    let pts = crate::pipeline::locations(&df, &s)?;
+    crate::config::apply_auto_region(&mut s, &pts)?;
 
     let proj = Laea::new(s.proj_lon0, s.proj_lat0);
     // The cutoff is given in the output unit; the index measures in meters.

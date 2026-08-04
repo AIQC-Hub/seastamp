@@ -55,29 +55,7 @@ impl SeaEnricher {
         proj: Laea,
         column: String,
     ) -> Result<Self, Box<dyn Error>> {
-        let ext = data
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_ascii_lowercase();
-        let feats = match ext.as_str() {
-            "geojson" | "json" => geojson_features(data, name_field)?,
-            "shp" => shp_features(data, name_field)?,
-            _ => {
-                return Err(format!(
-                    "sea data must be .geojson, .json, or .shp: {}",
-                    data.display()
-                )
-                .into())
-            }
-        };
-        if feats.is_empty() {
-            return Err(format!(
-                "no polygon features with a '{name_field}' name in {}; check --name-field",
-                data.display()
-            )
-            .into());
-        }
+        let feats = read_features(data, name_field)?;
         let enr = Self::from_features(feats, region, proj, column);
         if enr.index.is_empty() {
             eprintln!(
@@ -107,6 +85,39 @@ impl Enricher for SeaEnricher {
     fn enrich(&self, lon: f64, lat: f64) -> Vec<Value> {
         Vec::from([Value::Text(self.index.locate(lon, lat).cloned())])
     }
+}
+
+/// Read every named polygon from an IHO Sea Areas file, GeoJSON or shapefile,
+/// uncropped. Shared with the `regions` module, which needs the same features
+/// to derive one bounding box per name.
+pub(crate) fn read_features(
+    data: &Path,
+    name_field: &str,
+) -> Result<Vec<(Rings, String)>, Box<dyn Error>> {
+    let ext = data
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let feats = match ext.as_str() {
+        "geojson" | "json" => geojson_features(data, name_field)?,
+        "shp" => shp_features(data, name_field)?,
+        _ => {
+            return Err(format!(
+                "sea data must be .geojson, .json, or .shp: {}",
+                data.display()
+            )
+            .into())
+        }
+    };
+    if feats.is_empty() {
+        return Err(format!(
+            "no polygon features with a '{name_field}' name in {}; check --name-field",
+            data.display()
+        )
+        .into());
+    }
+    Ok(feats)
 }
 
 /// Read named polygon features from a Marine Regions style GeoJSON
@@ -174,7 +185,7 @@ fn shp_features(path: &Path, name_field: &str) -> Result<Vec<(Rings, String)>, B
 }
 
 pub fn run(args: SeaArgs) -> Result<(), Box<dyn Error>> {
-    let s: Settings = resolve(&args.common, Some(&args.region))?;
+    let mut s: Settings = resolve(&args.common, Some(&args.region))?;
     let data = args
         .data
         .ok_or("sea requires --data <IHO Sea Areas GeoJSON or shapefile>")?;
@@ -184,6 +195,11 @@ pub fn run(args: SeaArgs) -> Result<(), Box<dyn Error>> {
         .output
         .clone()
         .unwrap_or_else(|| super::default_output(&args.common.input, "sea", args.common.in_format));
+
+    // --region auto needs the points, so the region settles here, after the
+    // table is read and before any reference data is cropped to it.
+    let pts = crate::pipeline::locations(&df, &s)?;
+    crate::config::apply_auto_region(&mut s, &pts)?;
 
     let proj = Laea::new(s.proj_lon0, s.proj_lat0);
     let enr = SeaEnricher::open(&data, &args.name_field, s.bbox, proj, args.column)?;

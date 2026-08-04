@@ -1,7 +1,9 @@
 # Output columns
 
-Each command appends its columns to a copy of the input and writes the result;
-the input columns are preserved and their order is kept.
+Each enrichment command appends its columns to a copy of the input and writes the
+result; the input columns are preserved and their order is kept.
+([`regions`](../commands/regions.md) is not one of these: it has no input table
+and emits its own, documented on its own page.)
 
 | Command | Appended columns | Type |
 |---------|------------------|------|

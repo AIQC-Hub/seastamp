@@ -20,6 +20,7 @@ fn settings() -> Settings {
         bbox: GLOBAL,
         proj_lon0: 0.0,
         proj_lat0: 0.0,
+        auto: None,
     }
 }
 

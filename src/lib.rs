@@ -1,4 +1,4 @@
-//! seastamp: enrich longitude/latitude points with geospatial attributes.
+//! seastamp: stamp longitude/latitude points with sea attributes.
 //!
 //! Five modules add columns to a table of points, keyed only on `longitude` and
 //! `latitude`:
@@ -11,6 +11,10 @@
 //! Every module shares one pipeline (`pipeline::run_module`): read the input,
 //! reduce it to unique rounded locations, enrich those in parallel, then join the
 //! results back onto the full table and write it out.
+//!
+//! A sixth command, `regions`, stands outside that pipeline: it takes no points
+//! and lists sea and ocean bounding boxes, which is where a region for the other
+//! commands comes from.
 
 use std::error::Error;
 
@@ -31,5 +35,6 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
         Commands::Sea(args) => modules::sea::run(args),
         Commands::Place(args) => modules::place::run(args),
         Commands::Nearest(args) => modules::nearest::run(args),
+        Commands::Regions(args) => modules::regions::run(args),
     }
 }

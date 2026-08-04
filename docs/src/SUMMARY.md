@@ -10,6 +10,7 @@
 - [sea](./commands/sea.md)
 - [place](./commands/place.md)
 - [nearest](./commands/nearest.md)
+- [regions](./commands/regions.md)
 
 # Reference
 

@@ -4,6 +4,7 @@
 //! point in polygon, nearest feature) shared by the coast, sea, and place
 //! modules.
 
+pub mod arc;
 pub mod projection;
 pub mod vector;
 
