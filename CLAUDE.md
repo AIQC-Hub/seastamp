@@ -14,6 +14,9 @@ with sea attributes, one per top-level command:
 - `nearest`: nearest location in a caller-supplied second table, and the
   distance to it (any two sets, no bundled dataset).
 
+A sixth command, `regions`, stamps nothing: it lists sea and ocean bounding
+boxes, which is where a region for the five above comes from.
+
 It is a sibling to `ctddump` and follows the same house style, but is a separate
 package on purpose: it must stay light and reusable across several downstream
 projects, so it does not depend on `ctddump` and adds spatial dependencies only
@@ -68,6 +71,12 @@ The scaffold (CLI, config resolution, multi-format I/O, and the shared pipeline
   center (unlike `coast`, which uses the region LAEA). Appends `nearest_name`
   and `nearest_dist` (km or m). `geo::{unit_sphere, chord2_to_m}` hold the
   sphere math; `tests/nearest.rs` checks it against `haversine_m` cross-globe.
+- `regions` (`src/modules/regions.rs`): the odd one out. No `Enricher`, no
+  `run_module`, no input table, no `CommonArgs` / `RegionArgs`. It reduces the
+  IHO Sea Areas features (via `sea::read_features`, shared for this) to one
+  bounding box per name, or lists `config::PRESET_NAMES` when `--data` is
+  omitted, printing the table on stdout and optionally writing it with
+  `--output`. See the antimeridian rule below.
 
 The shared vector geometry (point-to-segment distance, tagged R-tree segments,
 even-odd point in polygon, and the containment-plus-nearest `PolygonIndex` used
@@ -231,8 +240,34 @@ presets (`global`, `baltic`, `norway`, `arctic`, `atlantic`, `europe`,
 `mediterranean`) or explicit `--min-lon/--max-lon/--min-lat/--max-lat` and
 `--proj-lon0/--proj-lat0`.
 The Baltic box (8, 31, 53, 66) is the `baltic` preset.
-Add presets in `config::preset_bbox`. The `place` municipality lookup will also
-need a per-region country list of ISO3 codes.
+Add presets in `config::preset_bbox` **and** in `config::PRESET_NAMES`, which is
+what `seastamp regions` and the preset test iterate; a preset missing from the
+list is invisible in both. The `place` municipality lookup will also need a
+per-region country list of ISO3 codes.
+
+The presets stay deliberately few and mostly European. `seastamp regions
+--data <IHO>` is the answer for everywhere else: it derives a box per named sea,
+so a wider preset list is not the way to broaden coverage. Against IHO v3 it
+lists 101 areas in about 35 seconds, nearly all of it parsing the 149 MB
+shapefile. Four cross the antimeridian (Bering, Chukchi, North and South
+Pacific) and two circle the globe (Arctic, Southern), which is the set to
+re-check if the extent logic is ever touched.
+
+Note that an IHO area is not the colloquial sea: S-23 splits the Gulfs of
+Bothnia, Finland, and Riga out of the Baltic, so the IHO `Baltic Sea` box is
+much smaller than the `baltic` preset. Do not "correct" a preset to match one
+IHO box.
+
+**Longitude extents in `regions` are arcs, not intervals.** Marine Regions
+splits its polygons at the antimeridian, so a Pacific area has vertices at both
+-180 and 180 and a plain min/max would report the whole globe for it. The extent
+is instead the complement of the widest longitude gap the area's *edges* leave
+uncovered (edges, not vertices: a long edge with no intermediate vertex would
+otherwise read as a gap). A gap under `CIRCUMPOLAR_GAP_DEG` counts as none at
+all and the area reports -180..180. When the arc crosses the line, `min_lon` is
+reported greater than `max_lon` with `crosses_antimeridian` true, which is
+exactly the shape `config::resolve` refuses: that is intentional, the flag names
+the seas needing two runs rather than pretending a usable box exists.
 
 ## Streaming (future)
 

@@ -62,6 +62,19 @@ pub struct Settings {
     pub proj_lat0: f64,
 }
 
+/// Every preset name, in the order they are documented. Kept beside
+/// [`preset_bbox`] so a new preset shows up in `seastamp regions` and in the
+/// test below without a second edit.
+pub const PRESET_NAMES: [&str; 7] = [
+    "global",
+    "baltic",
+    "norway",
+    "arctic",
+    "atlantic",
+    "europe",
+    "mediterranean",
+];
+
 /// Named region presets. Extend this as new regions are needed.
 pub fn preset_bbox(name: &str) -> Option<BBox> {
     match name.to_ascii_lowercase().as_str() {
@@ -161,7 +174,7 @@ mod tests {
 
     #[test]
     fn named_presets_resolve() {
-        for name in ["baltic", "norway", "arctic", "atlantic", "europe", "mediterranean", "global"] {
+        for name in PRESET_NAMES {
             assert!(preset_bbox(name).is_some(), "missing preset '{name}'");
         }
         // case-insensitive; an unknown name is None

@@ -19,14 +19,16 @@ pure Rust), and reads and writes Parquet, CSV, TSV, and the gzip variants
 | [`sea`](./commands/sea.md) | Sea or ocean name at the point (IHO Sea Areas). |
 | [`place`](./commands/place.md) | Nearest country and municipality (Natural Earth + GISCO). |
 | [`nearest`](./commands/nearest.md) | Nearest location in a second table you supply, with its distance. |
+| [`regions`](./commands/regions.md) | List sea and ocean bounding boxes, to find a region for the commands above. |
 
 ## How it works
 
-Every command follows the same pipeline: read the input, reduce it to unique
+The five enrichment commands follow the same pipeline: read the input, reduce it to unique
 locations with rounded coordinates (3 decimals by default), enrich those unique
 locations in parallel, then join the results back onto every input row. A file
 with millions of rows but few distinct positions is therefore cheap to enrich,
-because only the distinct positions are ever looked up.
+because only the distinct positions are ever looked up. `regions` stands outside
+that pipeline: it takes no points and only lists boxes.
 
 ## Quick example
 

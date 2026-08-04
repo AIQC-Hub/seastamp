@@ -6,6 +6,33 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A `regions` command that lists sea and ocean bounding boxes. With `--data` it
+  reduces every named area in an IHO Sea Areas file to one box; without it, it
+  prints the built-in `--region` presets. `--name` filters by substring and
+  `--output` writes the list as a table (`name`, `min_lon`, `max_lon`,
+  `min_lat`, `max_lat`, `crosses_antimeridian`) in any supported format.
+
+  The presets are mostly European, which left users elsewhere with no way to
+  discover a sensible region short of reading a map. Since the region also sets
+  where `coast` measures distances from, that was not a cosmetic gap. IHO Sea
+  Areas v3 yields 101 areas, of which four cross the antimeridian and two (the
+  Arctic and Southern Oceans) circle the globe.
+
+  `regions` takes no input table and runs no enrichment pipeline, so it shares
+  neither the common nor the region options with the other five commands.
+
+  The longitude extent is the smallest arc covering the area's polygon edges,
+  not the minimum and maximum of its vertices. Marine Regions splits its
+  polygons at the antimeridian, so a Pacific area has vertices at both -180 and
+  180, which a plain minimum and maximum would report as spanning the globe.
+  Working from edges rather than vertices also keeps a long edge with no
+  intermediate vertex from reading as a gap. An area whose extent genuinely
+  crosses the line is flagged and listed with `min_lon` greater than `max_lon`:
+  seastamp rejects such a region, so the flag marks exactly the seas that have
+  to be run as an eastern and a western box.
+
 ### Changed
 
 - Reworded how the project describes itself, which still read as it did under

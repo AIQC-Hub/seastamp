@@ -13,17 +13,22 @@ appends any of:
 - **nearest**: the nearest location in a second table you supply, and the
   distance to it (any two sets, for example measurements and fish farms).
 
-It reads and writes Parquet (default), CSV, TSV, and the gzip variants `csv.gz`
-and `tsv.gz`. Each command reduces the input to unique rounded locations,
-processes those in parallel, and joins the results back onto every row, so a file
-with millions of rows but few distinct positions is cheap to enrich.
+A sixth command, **regions**, takes no points: it lists sea and ocean bounding
+boxes, so you can find a region for the commands above.
 
-> **Status:** all five modules are implemented and tested: `coast` (nearest
-> GSHHG shoreline by projected R-tree lookup), `depth` (GEBCO grid lookup),
-> `sea` (IHO point in polygon with a nearest fallback), `place` (nearest
-> Natural Earth country and GISCO LAU municipality), and `nearest` (nearest
-> point of a caller-supplied table by unit-sphere R-tree). See `CLAUDE.md` for
-> the algorithm and caveats per module.
+It reads and writes Parquet (default), CSV, TSV, and the gzip variants `csv.gz`
+and `tsv.gz`. Each enrichment command reduces the input to unique rounded
+locations, processes those in parallel, and joins the results back onto every
+row, so a file with millions of rows but few distinct positions is cheap to
+enrich.
+
+> **Status:** all five enrichment modules are implemented and tested: `coast`
+> (nearest GSHHG shoreline by projected R-tree lookup), `depth` (GEBCO grid
+> lookup), `sea` (IHO point in polygon with a nearest fallback), `place`
+> (nearest Natural Earth country and GISCO LAU municipality), and `nearest`
+> (nearest point of a caller-supplied table by unit-sphere R-tree), plus
+> `regions` for listing bounding boxes. See `CLAUDE.md` for the algorithm and
+> caveats per module.
 
 ## Install
 
@@ -69,7 +74,8 @@ release archives do), add `--features static-netcdf` (this needs `cmake`).
 seastamp <command> <input> [options]
 ```
 
-Every command shares these options:
+The five enrichment commands share these options (`regions` takes none of them,
+having no input table):
 
 | Option | Default | Meaning |
 |--------|---------|---------|
@@ -98,6 +104,15 @@ is the whole globe.
 > work anywhere. Municipalities are Europe only (GISCO LAU), and regions
 > crossing the antimeridian are not supported. See
 > [Coverage and limits](https://aiqc-hub.github.io/seastamp/reference/coverage.html).
+
+The presets are mostly European. For anywhere else, `seastamp regions` lists
+every named sea and ocean in the IHO Sea Areas file with its bounding box, ready
+to pass as `--min-lon` and friends. With no `--data` it prints the presets
+instead:
+
+```bash
+seastamp regions --data ./data/iho/iho_sea_areas.geojson --name "bering"
+```
 
 The `nearest` command instead takes a second table (`--to`), the set of named
 locations to measure the distance to. Its coordinate columns default to
@@ -130,6 +145,9 @@ seastamp place cores.parquet \
 # Nearest fish farm to each measurement, distance in km
 seastamp nearest cores.parquet --to farms.parquet \
   --name-field farm_name -o cores.nearest.parquet
+
+# Bounding box of every sea and ocean, saved as a table
+seastamp regions --data ./data/iho/iho_sea_areas.geojson -o seas.parquet
 ```
 
 Run `seastamp <command> --help` for the full interface.
@@ -156,6 +174,9 @@ Run `scripts/enrich.sh --help` for all options.
 | `sea`   | `sea_name` (rename with `--column`) |
 | `place` | `country`, `country_code`, `municipality`, plus `municipality_dist` with `--municipalities` |
 | `nearest` | `nearest_name`, `nearest_dist` (rename with `--name-column` / `--dist-column`) |
+
+`regions` writes a standalone table instead: `name`, `min_lon`, `max_lon`,
+`min_lat`, `max_lat`, `crosses_antimeridian`.
 
 ## Data
 

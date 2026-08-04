@@ -44,7 +44,11 @@ Use a [preset](./regions.md) when one fits:
 seastamp coast cores.parquet --data ./data/gshhg/... --region norway
 ```
 
-Anywhere else, give the box and the center directly:
+Anywhere else, `seastamp regions --data <IHO Sea Areas>` lists every named sea
+and ocean with its bounding box, which is the quickest way to get a starting box
+for an unfamiliar area. See [regions](../commands/regions.md).
+
+Give the box and the center directly:
 
 ```bash
 # a run off New Zealand
@@ -79,6 +83,10 @@ Error: region min-lon (170) is greater than max-lon (-170). A region crossing
 the antimeridian is not supported; split the run into an eastern and a western
 box, or use a whole-globe region
 ```
+
+`seastamp regions` flags which seas this applies to: an area whose box crosses
+the line is listed with `min_lon` greater than `max_lon` and
+`crosses_antimeridian` true, so you know before the run that it needs two boxes.
 
 Cropping is affected too: a `(170, 180)` region drops reference features lying
 just across the line, so a coastline a few km east of 180 is invisible to a run

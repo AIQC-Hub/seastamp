@@ -1,10 +1,13 @@
-//! The four enrichment modules. Each builds an [`crate::pipeline::Enricher`] from
-//! its data source and options, then hands off to `pipeline::run_module`.
+//! The enrichment modules. Each builds an [`crate::pipeline::Enricher`] from
+//! its data source and options, then hands off to `pipeline::run_module`:
+//! `coast` (nearest GSHHG shoreline distance), `depth` (GEBCO grid lookup),
+//! `sea` (IHO Sea Areas point in polygon), `place` (nearest Natural Earth
+//! country and GISCO LAU municipality), and `nearest` (nearest point of a
+//! caller-supplied table).
 //!
-//! All four per-location lookups are implemented: `coast` (nearest GSHHG
-//! shoreline distance), `depth` (GEBCO grid lookup), `sea` (IHO Sea Areas point
-//! in polygon), and `place` (nearest Natural Earth country and GISCO LAU
-//! municipality).
+//! `regions` is the exception: it enriches nothing and has no `Enricher`. It
+//! lists sea and ocean bounding boxes, which is what the other modules' region
+//! options consume.
 
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -17,6 +20,7 @@ pub mod coast;
 pub mod depth;
 pub mod nearest;
 pub mod place;
+pub mod regions;
 pub mod sea;
 
 /// Default output path when `--output` is omitted: the input renamed to

@@ -28,6 +28,14 @@ once. Nothing is lost: the reads were serialized anyway.")]
     Place(PlaceArgs),
     /// Nearest location in a second table, with its distance
     Nearest(NearestArgs),
+    /// List sea and ocean bounding boxes (region presets, or an IHO Sea Areas file)
+    #[command(after_help = "Without --data this lists the built-in --region presets. With it, \
+every named area in an IHO Sea Areas file is reduced to one bounding box, which is how you find \
+a region for data outside the presets.\n\nA listed box is a crop box: widen it to taste, and \
+remember that for `coast` it also sets where distances are measured from, so a very large sea \
+makes a poor region. An area whose box crosses the antimeridian is flagged and has min_lon \
+greater than max_lon; seastamp cannot take such a box, so run it as two.")]
+    Regions(RegionsArgs),
 }
 
 /// Input / output tabular format. `Auto` infers from the file extension and
@@ -216,6 +224,37 @@ pub struct PlaceArgs {
     /// Distance unit for the municipality_dist column and --max-municipality-dist
     #[arg(long, value_enum, default_value_t = DistUnit::Km)]
     pub unit: DistUnit,
+}
+
+/// The `regions` listing. It takes no input table and no region of its own: it
+/// is where regions come from, so [`CommonArgs`] and [`RegionArgs`] would both
+/// be meaningless here.
+#[derive(Args, Debug)]
+pub struct RegionsArgs {
+    /// IHO Sea Areas polygons (GeoJSON or shapefile), or any named polygon
+    /// layer. Without it, the built-in --region presets are listed instead
+    #[arg(long)]
+    pub data: Option<PathBuf>,
+
+    /// Property / attribute field holding the area name
+    #[arg(long, default_value = "NAME")]
+    pub name_field: String,
+
+    /// Keep only areas whose name contains this text (case-insensitive)
+    #[arg(long)]
+    pub name: Option<String>,
+
+    /// Also write the list to a file (parquet, csv, tsv, csv.gz, tsv.gz)
+    #[arg(short, long)]
+    pub output: Option<PathBuf>,
+
+    /// Output format (default: inferred from --output, else parquet)
+    #[arg(long, value_enum, default_value_t = Format::Auto)]
+    pub out_format: Format,
+
+    /// Do not print the table, only write it (use with --output)
+    #[arg(short, long)]
+    pub quiet: bool,
 }
 
 #[derive(Args, Debug)]

@@ -25,7 +25,22 @@ Pick a region with `--region <NAME>`:
 | `europe` | -25, 45, 34, 72 |
 | `mediterranean` | -6, 37, 30, 46 |
 
-The default is `global` (the whole globe).
+The default is `global` (the whole globe). `seastamp regions` prints this table,
+so it is always available without leaving the terminal.
+
+## Finding a box outside the presets
+
+The presets are deliberately few and mostly European. For anywhere else, derive
+a box from the IHO Sea Areas layer with the [regions](../commands/regions.md)
+command, which reduces every named sea and ocean to its bounding box:
+
+```bash
+seastamp regions --data ./data/iho/iho_sea_areas.geojson --name "bering"
+```
+
+Those names are not `--region` values: pass the box itself with `--min-lon` and
+friends. A sea whose box crosses the antimeridian is flagged, because seastamp
+cannot take such a box and it has to be run as two.
 
 ## Explicit box and projection center
 
