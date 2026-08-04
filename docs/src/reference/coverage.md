@@ -12,18 +12,29 @@ work yet. Read this before running seastamp on data outside northern Europe.
 | [`sea`](../commands/sea.md) | Works anywhere | IHO Sea Areas is global, and a point inside a sea polygon is resolved by an exact lon/lat containment test. Only the fallback for points inside no polygon is projected. |
 | [`place`](../commands/place.md), `country` | Works anywhere | Natural Earth is global, containment first. |
 | [`place`](../commands/place.md), `municipality` | **Europe only** | GISCO LAU has no coverage elsewhere. |
-| [`coast`](../commands/coast.md) | **Set the region first** | GSHHG is global, but the distance is measured in a projection centered on the region. |
+| [`coast`](../commands/coast.md) | Works anywhere | The distance is measured in a projection centered on the region, and the default region centers itself on your data. |
 
-## Set the region to match your data
+## The region centers itself
 
 `coast` and `place`'s `municipality_dist` measure distance in a plane centered on
 the region (see [Technical notes](./technical-notes.md)). That is accurate near
-the center and degrades away from it, and **the default region is the whole
-globe, which puts the center at (0, 0)**, in the Gulf of Guinea. Running
-without a region therefore mismeasures distances everywhere except the equatorial
-Atlantic, and it does so quietly: the numbers look reasonable.
+the center and degrades away from it.
 
-How far off, for a 10 km distance, against that default center:
+**Since 0.12.0 the default region is `auto`**, which derives the box and the
+center from your own points, so this mostly takes care of itself. Real
+measurements from a three-point survey off Bergen:
+
+| Region | `dist_to_coast` |
+|--------|-----------------|
+| `auto` (default) | 40.97, 0.400, 69.41 km |
+| `global` (the old default) | 44.09, 0.423, 77.65 km |
+
+The old default was about 8% out there, and far worse further from (0, 0). See
+[Regions](./regions.md) for what `auto` does and when it gives up.
+
+The rest of this section is about the case `auto` cannot fix, and about what
+happens if you pin a region that does not match your data. How far off a 10 km
+distance is, against a center at (0, 0):
 
 | Data location | Distance from (0, 0) | Error |
 |---------------|---------------------|-------|
@@ -34,21 +45,25 @@ How far off, for a 10 km distance, against that default center:
 | Bering Sea | 13 563 km | -50.8% |
 | New Zealand | 15 341 km | -61.4% |
 
-Note that this is not about being outside Europe. A default-settings North Sea
-run is already about 12% out. Centering the projection on the data removes
-essentially all of it.
+Note that this was never about being outside Europe. A North Sea run under the
+old default was already about 12% out. Centering the projection on the data
+removes essentially all of it, which is what `auto` now does by default.
 
-Use a [preset](./regions.md) when one fits:
+Use a [preset or an IHO sea name](./regions.md) when you want the region pinned
+and reproducible rather than derived:
 
 ```bash
 seastamp coast cores.parquet --data ./data/gshhg/... --region norway
 ```
 
-Anywhere else, `seastamp regions --data <IHO Sea Areas>` lists every named sea
-and ocean with its bounding box, which is the quickest way to get a starting box
-for an unfamiliar area. See [regions](../commands/regions.md).
+Anywhere else, any of the 101 IHO sea names works as a region, no data file
+needed. `seastamp regions` lists them:
 
-Give the box and the center directly:
+```bash
+seastamp coast cores.parquet --data ./data/gshhg/... --region "Tasman Sea"
+```
+
+Or give the box and the center directly:
 
 ```bash
 # a run off New Zealand
@@ -57,8 +72,8 @@ seastamp coast cores.parquet --data ./data/gshhg/... \
   --proj-lon0 170 --proj-lat0 -40
 ```
 
-The center defaults to the middle of the box, so setting a sensible box is
-usually enough on its own.
+For a named region the center defaults to the middle of the box, so setting a
+sensible box is usually enough on its own.
 
 seastamp warns when the input sits far enough from the center to matter:
 
@@ -73,26 +88,41 @@ edges thousands of km from its center, so the warning can fire on a region that
 is genuinely as tight as the data allows. Splitting the run into several smaller
 regions is the fix when the accuracy matters.
 
-## The antimeridian is not supported
+## The antimeridian: distances now work, cropping still does not
 
-Region boxes are plain lon/lat rectangles compared without wrapping, so a box
-crossing 180 degrees cannot be expressed. Such a box is rejected:
+A region **box** is a plain lon/lat rectangle compared without wrapping, so one
+crossing 180 degrees cannot be expressed. The **projection** has no such
+problem: a LAEA about a correct center is seamless.
+
+`--region auto` separates the two. Points either side of the dateline get a
+correct center and a crop box that keeps every longitude, so distances are
+right and only cropping is loose. Measured on three points around Fiji:
+
+| Region | `dist_to_coast` |
+|--------|-----------------|
+| `auto` (default) | 7.31, 13.03, 50.84 km |
+| `global` (the old default) | 1.23, 5.41, 8.23 km |
+
+The old default was wrong by up to a factor of six there. Nothing but the
+projection center changed.
+
+An explicit crossing box is still rejected:
 
 ```
 Error: region min-lon (170) is greater than max-lon (-170). A region crossing
 the antimeridian is not supported; split the run into an eastern and a western
-box, or use a whole-globe region
+box, or use --region auto, which keeps the projection centered correctly and
+only widens the crop
 ```
 
-`seastamp regions` flags which seas this applies to: an area whose box crosses
-the line is listed with `min_lon` greater than `max_lon` and
-`crosses_antimeridian` true, so you know before the run that it needs two boxes.
+So are the four IHO sea names whose extent crosses the line: the Bering Sea, the
+Chukchi Sea, and the North and South Pacific Oceans. `seastamp regions` flags
+them with `crosses_antimeridian` true, so you know before the run.
 
-Cropping is affected too: a `(170, 180)` region drops reference features lying
-just across the line, so a coastline a few km east of 180 is invisible to a run
-bounded at 180. For work spanning the dateline, run the eastern and western
-halves separately and concatenate, or accept a whole-globe region with its
-distance cost.
+Cropping is the part that still suffers: a `(170, 180)` region drops reference
+features lying just across the line, so a coastline a few km east of 180 is
+invisible to a run bounded at 180. `auto` avoids that by keeping every longitude
+when the data wraps, at the cost of a larger reference set to index.
 
 ## Municipalities are Europe only
 

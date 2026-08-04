@@ -116,7 +116,7 @@ fn written_table_round_trips() {
             .iter()
             .map(|s| s.as_str())
             .collect::<Vec<_>>(),
-        ["name", "min_lon", "max_lon", "min_lat", "max_lat", "crosses_antimeridian"]
+        ["name", "min_lon", "max_lon", "min_lat", "max_lat", "crosses_antimeridian", "source"]
     );
     let crossing = df.column("crosses_antimeridian").unwrap().bool().unwrap();
     assert_eq!(crossing.get(1), Some(true), "the Pacific row is flagged");

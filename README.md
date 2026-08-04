@@ -89,29 +89,28 @@ having no input table):
 | `-t, --threads <N>` | all cores | Worker threads. `depth` always looks up its grid on one thread |
 | `-c, --config <TOML>` | none | Config file (CLI flags override it) |
 
-The `coast`, `sea`, and `place` commands also take region options: a `--region`
-preset (`global`, `baltic`, `norway`, `arctic`, `atlantic`, `europe`,
-`mediterranean`) or explicit `--min-lon/--max-lon/--min-lat/--max-lat`, plus
-`--proj-lon0/--proj-lat0` for the distance projection center. The default region
-is the whole globe.
+The `coast`, `sea`, and `place` commands also take region options. `--region`
+accepts `auto` (the default), a preset (`global`, `baltic`, `norway`, `arctic`,
+`atlantic`, `europe`, `mediterranean`), or any of the 101 IHO Sea Areas names
+such as `"Barentsz Sea"`, baked into the binary so no data file is needed. There
+are also explicit `--min-lon/--max-lon/--min-lat/--max-lat` and
+`--proj-lon0/--proj-lat0` for the distance projection center.
 
-> **Set the region to match your data.** `coast` distances (and `place`'s
-> `municipality_dist`) are measured in a projection centered on the region, so
-> they are accurate near that center and degrade away from it. The whole-globe
-> default centers on (0, 0), which puts a North Sea run about 12% out and a
-> Pacific one far worse. seastamp warns when your points sit far enough away to
-> matter. `depth`, `nearest`, `sea`, and `place`'s `country` are unaffected and
-> work anywhere. Municipalities are Europe only (GISCO LAU), and regions
-> crossing the antimeridian are not supported. See
+> **The region is where distances are measured from,** not just a crop. `coast`
+> distances (and `place`'s `municipality_dist`) are accurate near the region's
+> center and degrade away from it. `--region auto` handles this by deriving the
+> box and the center from your own points, including around a pole and across
+> the antimeridian, where no rectangle can put the center in the right place. It
+> warns when the points are spread too widely for any one projection to serve
+> them. `depth`, `nearest`, `sea`, and `place`'s `country` are unaffected and
+> work anywhere. Municipalities are Europe only (GISCO LAU). See
 > [Coverage and limits](https://aiqc-hub.github.io/seastamp/reference/coverage.html).
 
-The presets are mostly European. For anywhere else, `seastamp regions` lists
-every named sea and ocean in the IHO Sea Areas file with its bounding box, ready
-to pass as `--min-lon` and friends. With no `--data` it prints the presets
-instead:
+`seastamp regions` lists every name `--region` accepts, and with `--data`
+re-derives the boxes from an IHO Sea Areas file:
 
 ```bash
-seastamp regions --data ./data/iho/iho_sea_areas.geojson --name "bering"
+seastamp regions --name "bering"
 ```
 
 The `nearest` command instead takes a second table (`--to`), the set of named
@@ -133,8 +132,8 @@ seastamp coast cores.parquet \
 seastamp depth cores.csv.gz --data ./data/gebco/GEBCO_2024_sub_ice.nc \
   -o cores.depth.csv.gz
 
-# Sea name, cropping the reference data to the Norway region
-seastamp sea cores.parquet --region norway \
+# Sea name, cropping the reference data to a named IHO sea
+seastamp sea cores.parquet --region "Norwegian Sea" \
   --data ./data/iho/iho_sea_areas.geojson
 
 # Nearest country and municipality
@@ -146,8 +145,8 @@ seastamp place cores.parquet \
 seastamp nearest cores.parquet --to farms.parquet \
   --name-field farm_name -o cores.nearest.parquet
 
-# Bounding box of every sea and ocean, saved as a table
-seastamp regions --data ./data/iho/iho_sea_areas.geojson -o seas.parquet
+# Every region name seastamp accepts, saved as a table
+seastamp regions -o regions.parquet
 ```
 
 Run `seastamp <command> --help` for the full interface.
@@ -176,7 +175,7 @@ Run `scripts/enrich.sh --help` for all options.
 | `nearest` | `nearest_name`, `nearest_dist` (rename with `--name-column` / `--dist-column`) |
 
 `regions` writes a standalone table instead: `name`, `min_lon`, `max_lon`,
-`min_lat`, `max_lat`, `crosses_antimeridian`.
+`min_lat`, `max_lat`, `crosses_antimeridian`, `source`.
 
 ## Data
 

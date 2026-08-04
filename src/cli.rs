@@ -109,8 +109,10 @@ pub struct CommonArgs {
 /// from the resolved config; a named `--region` preset sets both at once.
 #[derive(Args, Debug)]
 pub struct RegionArgs {
-    /// Named region preset: global (default), baltic, norway, arctic, atlantic,
-    /// europe, mediterranean
+    /// Region: "auto" (the default, derived from your points), a preset
+    /// (global, baltic, norway, arctic, atlantic, europe, mediterranean), or an
+    /// IHO Sea Areas name such as "Barents Sea". Run `seastamp regions` to list
+    /// every accepted name
     #[arg(long)]
     pub region: Option<String>,
 

@@ -11,13 +11,61 @@ from, so the wrong region silently returns wrong distances rather than an error.
 [Coverage and limits](./coverage.md) gives the size of that error and how to pick
 a region, and is worth reading before running on data outside northern Europe.
 
+## auto, the default
+
+With no `--region` at all, or with `--region auto`, seastamp derives the region
+from your own points once it has read them:
+
+```
+[seastamp] --region auto: box (-1.30, 9.90, 55.10, 65.90), projection centered on (4.23, 60.47)
+```
+
+The **center** is the mean direction of the points computed in three dimensions,
+not an average of their degrees. That matters in two places no rectangle can
+reach:
+
+- **Around a pole.** A ring of stations at 75N spanning every longitude averages
+  to the pole itself, which is the correct center. The `arctic` preset's box
+  center is forced down to 75N, four times worse.
+- **Across the antimeridian.** The projection has no seam, so a survey either
+  side of 180 is centered correctly. Only the crop box has a seam, and `auto`
+  widens that to every longitude rather than distorting the center. Cropping
+  gets looser; distances stay right.
+
+The **box** is the points' own extent padded by 5 degrees, on top of which each
+command adds its usual 5 degree margin. The reference data kept therefore
+reaches about 10 degrees, roughly 1100 km, beyond the outermost point, which is
+deliberately generous: an offshore point's nearest coast can be hundreds of km
+away, and cropping to the points alone would cut the coastline out and overstate
+the distance.
+
+Explicit bounds still win. `--region auto --min-lon 0` derives everything except
+the western bound.
+
+### When auto cannot help
+
+One projection cannot serve points spread over the whole globe, and `auto` says
+so rather than returning a plausible wrong number:
+
+```
+[seastamp] warning: the points are spread over too much of the globe for any one
+projection to serve them (clustering 0.10 of a possible 1.00).
+[seastamp] warning: --region auto cannot help here. Split the run by area and
+concatenate the results, or accept the distance error.
+```
+
+The clustering figure is the length of the mean direction vector: 1.00 when
+every point sits in one place, near 0 when they are spread evenly over the
+globe. A polar ring scores 0.97 despite spanning every longitude, because those
+points really do share a direction.
+
 ## Presets
 
 Pick a region with `--region <NAME>`:
 
 | Preset | Box (min_lon, max_lon, min_lat, max_lat) |
 |--------|------------------------------------------|
-| `global` (default) | -180, 180, -90, 90 |
+| `global` | -180, 180, -90, 90 |
 | `baltic` | 8, 31, 53, 66 |
 | `norway` | -10, 45, 55, 85 |
 | `arctic` | -180, 180, 60, 90 |
@@ -25,22 +73,34 @@ Pick a region with `--region <NAME>`:
 | `europe` | -25, 45, 34, 72 |
 | `mediterranean` | -6, 37, 30, 46 |
 
-The default is `global` (the whole globe). `seastamp regions` prints this table,
-so it is always available without leaving the terminal.
+`global` is no longer the default; `auto` is. Pass `--region global` to get the
+old whole-globe behavior back.
 
-## Finding a box outside the presets
+## IHO sea names
 
-The presets are deliberately few and mostly European. For anywhere else, derive
-a box from the IHO Sea Areas layer with the [regions](../commands/regions.md)
-command, which reduces every named sea and ocean to its bounding box:
+`--region` also takes any of the 101 IHO Sea Areas v3 names, baked into the
+binary so no data file is needed:
 
 ```bash
-seastamp regions --data ./data/iho/iho_sea_areas.geojson --name "bering"
+seastamp coast cores.parquet --data ./data/gshhg/... --region "Barentsz Sea"
 ```
 
-Those names are not `--region` values: pass the box itself with `--min-lon` and
-friends. A sea whose box crosses the antimeridian is flagged, because seastamp
-cannot take such a box and it has to be run as two.
+`seastamp regions` lists presets and IHO names together, with a `source` column
+saying which is which. Two things to know:
+
+- **An IHO area is not the colloquial sea.** S-23 splits the Gulfs of Bothnia,
+  Finland, and Riga out of the Baltic, so `--region "Baltic Sea"` crops far more
+  tightly than the `baltic` preset. Check the neighboring names first.
+- **Four areas cannot be used by name**: the Bering Sea, the Chukchi Sea, and
+  the North and South Pacific Oceans all cross the antimeridian, so their box
+  cannot be expressed. seastamp refuses them and points at `--region auto`.
+
+An unknown name is an error, not a silent fall back to the whole globe, and it
+suggests the near misses:
+
+```
+Error: unknown region 'Barent Sea'. Did you mean: Barentsz Sea?
+```
 
 ## Explicit box and projection center
 
@@ -51,24 +111,31 @@ seastamp coast cores.parquet --data ./data/gshhg/... \
   --min-lon 8 --max-lon 31 --min-lat 53 --max-lat 66
 ```
 
-By default the LAEA projection is centered on the region box center. Override it
-with `--proj-lon0` / `--proj-lat0` if you want the center elsewhere (for example
-to reduce distortion over an asymmetric region).
+Where the LAEA projection is centered depends on how the region was chosen. A
+**named** region centers on its box center. Under **auto** the center comes from
+the points themselves, which is better whenever the data sits off to one side of
+its box. Either way, `--proj-lon0` / `--proj-lat0` override it.
+
+Note that giving bounds without a `--region` name leaves you in auto mode, so
+the box is yours and the center is still derived from the data. Pass
+`--region global` (or any name) if you want the old box-center behavior.
 
 ## Precedence
 
 For the region box and projection center, later sources win:
 
 ```
-preset / built-in default  <  config file  <  CLI flag
+auto / preset / built-in default  <  config file  <  CLI flag
 ```
 
-So a `--region` preset sets the box, a [config file](./configuration.md) can
-override individual bounds, and a CLI `--min-lon` (etc.) overrides both.
+So a `--region` name sets the box, a [config file](./configuration.md) can
+override individual bounds, and a CLI `--min-lon` (etc.) overrides both. Auto
+sits at the bottom: it fills in whatever nothing else specified.
 
 ## Choosing a region
 
 Cropping keeps the reference data small and the lookups fast, but a point whose
 true nearest feature lies outside the region-plus-margin box can be wrong (for
-`coast`, an over-estimate). If in doubt, widen the box or use `global`; the
-unique-location pipeline keeps even a global run affordable.
+`coast`, an over-estimate). `auto` pads generously for exactly this reason. If
+you are pinning a region by hand and in doubt, widen the box; the unique-location
+pipeline keeps even a global run affordable.

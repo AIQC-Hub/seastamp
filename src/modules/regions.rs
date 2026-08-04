@@ -30,12 +30,8 @@ use std::path::Path;
 use polars::prelude::*;
 
 use crate::cli::RegionsArgs;
-use crate::config::{preset_bbox, PRESET_NAMES};
-
-/// A gap this narrow counts as no gap at all: the area wraps the globe, and its
-/// longitude extent is the whole range rather than an arc that happens to stop
-/// a fraction of a degree short of where it started.
-const CIRCUMPOLAR_GAP_DEG: f64 = 1.0;
+use crate::config::{preset_bbox, IHO_AREAS, PRESET_NAMES};
+use crate::geo::arc::{covering_arc, push_interval};
 
 /// One named area's bounding box in degrees.
 #[derive(Debug, Clone, PartialEq)]
@@ -48,39 +44,9 @@ pub struct Area {
     /// True when the box runs east past 180 and continues from -180, which is
     /// also why `min_lon` is then greater than `max_lon`.
     pub crosses_antimeridian: bool,
-}
-
-/// Longitude normalized to `0..360`, the frame the arc arithmetic works in.
-fn norm360(lon: f64) -> f64 {
-    let x = lon % 360.0;
-    if x < 0.0 {
-        x + 360.0
-    } else {
-        x
-    }
-}
-
-/// Back from `0..360` to the `-180..180` the rest of seastamp uses.
-fn to180(lon360: f64) -> f64 {
-    if lon360 > 180.0 {
-        lon360 - 360.0
-    } else {
-        lon360
-    }
-}
-
-/// The longitude interval one polygon edge covers, as `(start, length)` in the
-/// `0..360` frame. An edge takes the shorter way around: a polygon edge
-/// spanning more than half the globe would be a data error, and reading it the
-/// long way would swallow the very gap we are looking for.
-fn edge_interval(lon_a: f64, lon_b: f64) -> (f64, f64) {
-    let (a, b) = (norm360(lon_a), norm360(lon_b));
-    let east = norm360(b - a); // degrees travelled going east from a to b
-    if east <= 180.0 {
-        (a, east)
-    } else {
-        (b, 360.0 - east)
-    }
+    /// Where the box came from: a built-in `preset`, the baked-in `iho` table,
+    /// or `data` when it was derived from a file passed with `--data`.
+    pub source: String,
 }
 
 /// What one name's polygon parts contribute, accumulated as they are read.
@@ -108,59 +74,10 @@ impl Accum {
         }
     }
 
-    /// Record the longitude span of one edge, splitting it if it runs past the
-    /// seam so the sweep can stay on a plain sorted list.
+    /// Record the longitude span of one edge.
     fn add_edge(&mut self, lon_a: f64, lon_b: f64) {
-        let (start, len) = edge_interval(lon_a, lon_b);
-        if start + len > 360.0 {
-            self.intervals.push((start, 360.0));
-            self.intervals.push((0.0, start + len - 360.0));
-        } else {
-            self.intervals.push((start, start + len));
-        }
+        push_interval(&mut self.intervals, lon_a, lon_b);
     }
-}
-
-/// Smallest longitude arc covering every edge recorded in `intervals`, as
-/// `(min_lon, max_lon, crosses_antimeridian)` in degrees.
-///
-/// Every edge contributes a covered interval; the arc is the complement of the
-/// widest interval left uncovered. A fully covered circle (or one whose widest
-/// gap is under [`CIRCUMPOLAR_GAP_DEG`]) reports the whole range.
-fn lon_extent(intervals: &mut [(f64, f64)]) -> Option<(f64, f64, bool)> {
-    if intervals.is_empty() {
-        return None;
-    }
-    intervals.sort_by(|x, y| x.0.total_cmp(&y.0));
-
-    // Sweep for the widest gap between the end of the covered run so far and
-    // the start of the next interval.
-    let (mut gap_from, mut gap_width) = (0.0_f64, -1.0_f64);
-    let mut covered_to = intervals[0].1;
-    for &(start, end) in &intervals[1..] {
-        if start > covered_to {
-            let w = start - covered_to;
-            if w > gap_width {
-                (gap_from, gap_width) = (covered_to, w);
-            }
-        }
-        covered_to = covered_to.max(end);
-    }
-    // The gap that wraps the seam, from the end of the last interval round to
-    // the start of the first.
-    let wrap = intervals[0].0 + 360.0 - covered_to;
-    if wrap > gap_width {
-        (gap_from, gap_width) = (covered_to, wrap);
-    }
-
-    if gap_width < CIRCUMPOLAR_GAP_DEG {
-        return Some((-180.0, 180.0, false));
-    }
-    // The arc is everything the gap is not: it starts where the gap ends and
-    // runs east to where the gap starts.
-    let west = to180(norm360(gap_from + gap_width));
-    let east = to180(norm360(gap_from));
-    Some((west, east, west > east))
 }
 
 /// Collapse named polygon parts into one bounding box per name. A MultiPolygon
@@ -191,7 +108,7 @@ pub fn areas_from_features(feats: &[(crate::geo::vector::Rings, String)]) -> Vec
     let mut out: Vec<Area> = acc
         .into_iter()
         .filter_map(|(name, mut a)| {
-            let (min_lon, max_lon, crosses) = lon_extent(&mut a.intervals)?;
+            let (min_lon, max_lon, crosses) = covering_arc(&mut a.intervals)?;
             Some(Area {
                 name: name.to_string(),
                 min_lon,
@@ -199,6 +116,7 @@ pub fn areas_from_features(feats: &[(crate::geo::vector::Rings, String)]) -> Vec
                 min_lat: a.min_lat,
                 max_lat: a.max_lat,
                 crosses_antimeridian: crosses,
+                source: "data".to_string(),
             })
         })
         .collect();
@@ -206,22 +124,32 @@ pub fn areas_from_features(feats: &[(crate::geo::vector::Rings, String)]) -> Vec
     out
 }
 
-/// The built-in `--region` presets as areas, so both listings share a shape.
-fn preset_areas() -> Vec<Area> {
-    PRESET_NAMES
-        .iter()
-        .filter_map(|name| {
-            let b = preset_bbox(name)?;
-            Some(Area {
-                name: name.to_string(),
-                min_lon: b.min_lon,
-                max_lon: b.max_lon,
-                min_lat: b.min_lat,
-                max_lat: b.max_lat,
-                crosses_antimeridian: false,
-            })
+/// Every name `--region` accepts: the built-in presets first, then the baked-in
+/// IHO Sea Areas table. Listing both is the point, since the two are
+/// interchangeable at the `--region` flag and neither needs a data file.
+fn builtin_areas() -> Vec<Area> {
+    let presets = PRESET_NAMES.iter().filter_map(|name| {
+        let b = preset_bbox(name)?;
+        Some(Area {
+            name: name.to_string(),
+            min_lon: b.min_lon,
+            max_lon: b.max_lon,
+            min_lat: b.min_lat,
+            max_lat: b.max_lat,
+            crosses_antimeridian: false,
+            source: "preset".to_string(),
         })
-        .collect()
+    });
+    let iho = IHO_AREAS.iter().map(|a| Area {
+        name: a.name.to_string(),
+        min_lon: a.bbox.min_lon,
+        max_lon: a.bbox.max_lon,
+        min_lat: a.bbox.min_lat,
+        max_lat: a.bbox.max_lat,
+        crosses_antimeridian: a.crosses,
+        source: "iho".to_string(),
+    });
+    presets.chain(iho).collect()
 }
 
 /// Read an IHO Sea Areas file and reduce it to one box per name.
@@ -239,14 +167,14 @@ pub fn to_frame(areas: &[Area]) -> Result<DataFrame, Box<dyn Error>> {
         "min_lat" => areas.iter().map(|a| a.min_lat).collect::<Vec<_>>(),
         "max_lat" => areas.iter().map(|a| a.max_lat).collect::<Vec<_>>(),
         "crosses_antimeridian" => areas.iter().map(|a| a.crosses_antimeridian).collect::<Vec<_>>(),
+        "source" => areas.iter().map(|a| a.source.clone()).collect::<Vec<_>>(),
     }?;
     Ok(df)
 }
 
 /// Print the list as an aligned table on stdout. The table is the command's
 /// product, not progress reporting, so it goes to stdout and stays pipeable.
-fn print_table(areas: &[Area], presets: bool) {
-    const HEAD: [&str; 5] = ["min_lon", "max_lon", "min_lat", "max_lat", "antimeridian"];
+fn print_table(areas: &[Area], builtin: bool) {
     let w = areas
         .iter()
         .map(|a| a.name.chars().count())
@@ -255,17 +183,18 @@ fn print_table(areas: &[Area], presets: bool) {
         .unwrap_or(4);
 
     println!(
-        "{:<w$}  {:>8}  {:>8}  {:>8}  {:>8}  {}",
-        "name", HEAD[0], HEAD[1], HEAD[2], HEAD[3], HEAD[4]
+        "{:<w$}  {:>8}  {:>8}  {:>8}  {:>8}  {:<6}  antimeridian",
+        "name", "min_lon", "max_lon", "min_lat", "max_lat", "source"
     );
     for a in areas {
         println!(
-            "{:<w$}  {:>8.2}  {:>8.2}  {:>8.2}  {:>8.2}  {}",
+            "{:<w$}  {:>8.2}  {:>8.2}  {:>8.2}  {:>8.2}  {:<6}  {}",
             a.name,
             a.min_lon,
             a.max_lon,
             a.min_lat,
             a.max_lat,
+            a.source,
             if a.crosses_antimeridian { "yes" } else { "" }
         );
     }
@@ -276,16 +205,23 @@ fn print_table(areas: &[Area], presets: bool) {
         areas.len(),
         if areas.len() == 1 { "" } else { "s" }
     );
-    if presets {
-        eprintln!("[seastamp] these are the names --region accepts. Pass --data <IHO Sea Areas> to list every sea and ocean instead.");
+    if builtin {
+        eprintln!(
+            "[seastamp] every name here works as --region <NAME>, no data file needed. \
+             --region auto derives the region from your points instead."
+        );
     } else {
-        eprintln!("[seastamp] use a box with --min-lon / --max-lon / --min-lat / --max-lat, not --region, which only takes the built-in preset names.");
+        eprintln!(
+            "[seastamp] derived from --data. The built-in list (run without --data) is what \
+             --region accepts by name; use --min-lon / --max-lon / --min-lat / --max-lat for \
+             anything else."
+        );
     }
     if crossing > 0 {
         eprintln!(
             "[seastamp] {crossing} of them {} the antimeridian, so min_lon is greater than \
-             max_lon there. seastamp cannot take such a box: split the run into an eastern and a \
-             western half.",
+             max_lon there. --region rejects those by name: use --region auto, or split the run \
+             into an eastern and a western half.",
             if crossing == 1 { "crosses" } else { "cross" }
         );
     }
@@ -294,7 +230,7 @@ fn print_table(areas: &[Area], presets: bool) {
 pub fn run(args: RegionsArgs) -> Result<(), Box<dyn Error>> {
     let mut areas = match &args.data {
         Some(p) => areas_from_file(p, &args.name_field)?,
-        None => preset_areas(),
+        None => builtin_areas(),
     };
 
     if let Some(filter) = &args.name {
@@ -315,40 +251,3 @@ pub fn run(args: RegionsArgs) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// An edge always covers the shorter way round, whichever way it is drawn.
-    #[test]
-    fn edge_takes_the_short_arc() {
-        assert_eq!(edge_interval(10.0, 40.0), (10.0, 30.0));
-        assert_eq!(edge_interval(40.0, 10.0), (10.0, 30.0));
-        // across the seam: 170 E to 170 W is 20 degrees, not 340
-        let (start, len) = edge_interval(170.0, -170.0);
-        assert_eq!((start, len), (170.0, 20.0));
-    }
-
-    #[test]
-    fn norm360_and_back() {
-        assert_eq!(norm360(-180.0), 180.0);
-        assert_eq!(norm360(-90.0), 270.0);
-        assert_eq!(to180(270.0), -90.0);
-        assert_eq!(to180(180.0), 180.0);
-    }
-
-    /// A plain box in one hemisphere keeps its own bounds.
-    #[test]
-    fn simple_box_extent() {
-        let mut iv = vec![(10.0, 20.0), (20.0, 30.0)];
-        assert_eq!(lon_extent(&mut iv), Some((10.0, 30.0, false)));
-    }
-
-    /// A gap narrower than the circumpolar threshold reports the whole range
-    /// rather than an arc that stops just short of closing.
-    #[test]
-    fn near_full_circle_is_circumpolar() {
-        let mut iv = vec![(0.0, 359.5)];
-        assert_eq!(lon_extent(&mut iv), Some((-180.0, 180.0, false)));
-    }
-}

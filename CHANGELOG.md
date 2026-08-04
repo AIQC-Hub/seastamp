@@ -8,11 +8,48 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- A `regions` command that lists sea and ocean bounding boxes. With `--data` it
-  reduces every named area in an IHO Sea Areas file to one box; without it, it
-  prints the built-in `--region` presets. `--name` filters by substring and
-  `--output` writes the list as a table (`name`, `min_lon`, `max_lon`,
-  `min_lat`, `max_lat`, `crosses_antimeridian`) in any supported format.
+- `--region auto`, which derives the region from the input points once they are
+  read: the crop box from their extent, and the projection center from their
+  mean direction computed in three dimensions. Two cases no region box can
+  express now work.
+
+  Around a pole, a ring of stations at 75 N spanning every longitude centers on
+  the pole itself, where a rectangle's center is forced down to the middle of
+  its latitude band. Worst-case distortion drops from -3.4% under the `arctic`
+  preset to -0.9%.
+
+  Across the antimeridian, the projection has no seam: only the rectangular crop
+  box does. `auto` separates the two, keeping a correct center and widening the
+  crop to every longitude. Measured on three points around Fiji, `dist_to_coast`
+  came out 7.31, 13.03, and 50.84 km against 1.23, 5.41, and 8.23 km under the
+  old whole-globe default, wrong there by up to a factor of six.
+
+  When the points are spread over too much of the globe for any projection to
+  serve them, `auto` says so rather than returning a plausible wrong number. The
+  measure is the length of the mean direction vector, 1.00 for points in one
+  place and near 0 for points spread evenly over the globe. A polar ring scores
+  0.97 despite spanning every longitude, which is the point.
+
+- `--region` accepts any of the 101 IHO Sea Areas v3 names, for example
+  `--region "Barentsz Sea"`, baked into the binary from a generated table so no
+  data file is needed. `scripts/gen_iho_areas.py` regenerates it from
+  `seastamp regions --data <IHO>` output.
+
+  Four of them cannot be used by name, because their extent crosses the
+  antimeridian and no box can express it: the Bering Sea, the Chukchi Sea, and
+  the North and South Pacific Oceans. Naming one is an error that points at
+  `--region auto`, which handles data in those areas correctly.
+
+  `seastamp regions` now lists presets and IHO names together, from the baked-in
+  table, so it needs no `--data` to show the full vocabulary. A `source` column
+  says where each row came from. `--data` still re-derives the boxes from a
+  file, which is what a newer IHO release would need.
+
+- A `regions` command that lists sea and ocean bounding boxes: every name
+  `--region` accepts, or, with `--data`, one box per named area in an IHO Sea
+  Areas file. `--name` filters by substring and `--output` writes the table
+  (`name`, `min_lon`, `max_lon`, `min_lat`, `max_lat`, `crosses_antimeridian`,
+  `source`) in any supported format.
 
   The presets are mostly European, which left users elsewhere with no way to
   discover a sensible region short of reading a map. Since the region also sets
@@ -28,12 +65,22 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   polygons at the antimeridian, so a Pacific area has vertices at both -180 and
   180, which a plain minimum and maximum would report as spanning the globe.
   Working from edges rather than vertices also keeps a long edge with no
-  intermediate vertex from reading as a gap. An area whose extent genuinely
-  crosses the line is flagged and listed with `min_lon` greater than `max_lon`:
-  seastamp rejects such a region, so the flag marks exactly the seas that have
-  to be run as an eastern and a western box.
+  intermediate vertex from reading as a gap, which four contiguous parts tiling
+  the globe would otherwise trip over.
 
 ### Changed
+
+- **The default region is now `auto` rather than the whole globe.** Distances
+  from `coast` and `place`'s `municipality_dist` will change for any run that
+  did not set a region, and they change toward being correct: a three-point
+  survey off Bergen went from 44.09, 0.423, and 77.65 km to 40.97, 0.400, and
+  69.41 km, the old default having been about 8% out. Pass `--region global` for
+  the previous behavior. `depth`, `nearest`, `sea`, and `place`'s `country` are
+  unaffected, since none of them projects.
+
+  Giving explicit bounds without a `--region` name also leaves you in auto mode
+  now, so the box is yours and the center is still derived from the data. Name a
+  region, or pass `--proj-lon0` / `--proj-lat0`, to pin the center.
 
 - Reworded how the project describes itself, which still read as it did under
   the old `geoenrich` name: a tool that "adds geospatial attributes". That named
@@ -46,6 +93,13 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The crate description also lists `nearest` at last. It has found the closest
   location in a caller-supplied table since 0.5.0, but the description still
   named only the other four commands.
+
+### Fixed
+
+- An unknown `--region` name is an error instead of a silent fall back to the
+  whole globe, which used to turn a typo into quietly mismeasured distances. The
+  error suggests near misses: `unknown region 'Barent Sea'. Did you mean:
+  Barentsz Sea?`
 
 ## [0.11.0] - 2026-08-04
 

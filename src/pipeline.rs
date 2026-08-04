@@ -126,6 +126,15 @@ fn warn_if_far_from_center(uniq: &[(f64, f64)], center: (f64, f64)) {
     }
 }
 
+/// The input's `(lon, lat)` pairs, in row order, nulls and non-numerics as NaN.
+/// Used by `--region auto` to derive the region before the reference data is
+/// opened, which is why it is separate from [`run_module`]'s own extraction.
+pub fn locations(df: &DataFrame, s: &Settings) -> Result<Vec<(f64, f64)>, Box<dyn Error>> {
+    let lon = column_f64(df, &s.lon_col)?;
+    let lat = column_f64(df, &s.lat_col)?;
+    Ok(lon.into_iter().zip(lat).collect())
+}
+
 /// Extract a column as `f64`, mapping nulls to NaN. Casts from any numeric dtype.
 fn column_f64(df: &DataFrame, name: &str) -> Result<Vec<f64>, Box<dyn Error>> {
     let s = df
