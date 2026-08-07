@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.14.0] - 2026-08-07
 
 ### Added
 
@@ -39,8 +39,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and every spot check went to `--partition`. `sea` gains least, its containment
   test being an exact lon/lat one that no projection touches.
 
-  The new [auto or partition](docs/src/reference/auto-or-partition.md) page has
-  the full measurements and says which to use when.
+  The new [auto or partition](https://aiqc-hub.github.io/seastamp/reference/auto-or-partition.html)
+  page has the full measurements and says which to use when.
 
   Data that already suits one projection is left as a single partition and comes
   out identical to an ordinary run. Partitioning is deterministic: the same table
