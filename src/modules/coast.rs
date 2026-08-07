@@ -28,7 +28,7 @@ use rstar::{PointDistance, RTree, RTreeObject, AABB};
 
 use crate::cli::{CoastArgs, DistUnit};
 use crate::config::{resolve, BBox, Settings};
-use crate::geo::vector::{expand, point_seg_dist2, CROP_MARGIN_DEG};
+use crate::geo::vector::{crop_reach_m, expand, point_seg_dist2, CROP_MARGIN_DEG};
 use crate::geo::Laea;
 use crate::pipeline::{run_module, run_partitioned, Enricher, OutputKind, OutputSpec, Value};
 
@@ -89,6 +89,9 @@ pub struct CoastEnricher {
     proj: Laea,
     to_km: bool,
     column: String,
+    /// The grown box the shoreline was cropped to, kept so the enricher can say
+    /// whether a distance reached further than the data it was allowed to see.
+    crop: BBox,
 }
 
 impl CoastEnricher {
@@ -117,6 +120,7 @@ impl CoastEnricher {
             proj,
             to_km: matches!(unit, DistUnit::Km),
             column,
+            crop,
         }
     }
 
@@ -175,32 +179,27 @@ impl CoastEnricher {
             }
         }
 
-        // With one region this is the whole run; with many it is a handful of
-        // partitions in open water, and saying "every distance will be null"
-        // would be false. Counting them is also the only warning a caller gets
-        // that a tighter crop has cost them values a global crop would have
-        // found, however distorted those were.
-        let empty = segs.iter().filter(|s| s.is_empty()).count();
-        if empty == segs.len() {
+        // Only the whole run coming up empty is worth saying here. A single
+        // partition with no shoreline is not news yet: `--partition` widens such
+        // a crop and tries again, so warning now would report a null that the
+        // finished run does not have. Whatever survives that is reported by
+        // `pipeline::run_partitioned`, once it is actually true.
+        if segs.iter().all(|s| s.is_empty()) {
             eprintln!(
                 "[seastamp] warning: no shoreline segments overlap the region, so every distance \
                  will be null. Check --region and --data against your points."
-            );
-        } else if empty > 0 {
-            eprintln!(
-                "[seastamp] warning: {empty} partition(s) have no shoreline within reach, so \
-                 dist_to_coast is null for points there. GSHHG L1 has no Antarctic coastline \
-                 (it stops at 69S), which is the usual cause."
             );
         }
         Ok(segs
             .into_iter()
             .zip(regions)
-            .map(|(s, &(_, proj))| CoastEnricher {
+            .zip(crops)
+            .map(|((s, &(_, proj)), crop)| CoastEnricher {
                 tree: RTree::bulk_load(s),
                 proj,
                 to_km: matches!(unit, DistUnit::Km),
                 column: column.to_string(),
+                crop,
             })
             .collect())
     }
@@ -211,6 +210,21 @@ impl Enricher for CoastEnricher {
     /// the input sits far from its center.
     fn projection_center(&self) -> Option<(f64, f64)> {
         Some(self.proj.center())
+    }
+
+    /// A shoreline distance is only trustworthy when the coast it found is
+    /// nearer than the edge of the cropped data: anything further and a closer
+    /// coast could be sitting just outside. No coastline at all is the extreme
+    /// of the same problem.
+    fn crop_shortfall(&self, lon: f64, lat: f64) -> f64 {
+        let (x, y) = self.proj.forward(lon, lat);
+        match self.tree.nearest_neighbor([x, y]) {
+            None => f64::INFINITY, // no coastline at all within the crop
+            Some(seg) => {
+                let d = seg.distance_2(&[x, y]).sqrt();
+                (d - crop_reach_m(&self.crop, lon, lat)).max(0.0)
+            }
+        }
     }
 
     fn outputs(&self) -> Vec<OutputSpec> {

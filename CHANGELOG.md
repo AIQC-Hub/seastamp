@@ -4,6 +4,46 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-08-08
+
+### Fixed
+
+- `--partition` no longer reports a distance to whatever coastline happened to
+  fall inside a partition's crop. Each partition was cropped to its own extent
+  plus about 10 degrees, which suits points near a coast and is far too tight for
+  points in open water, whose nearest shoreline can be two thousand km away. Such
+  a point got the nearest feature that was in range, always an over-estimate, or
+  no answer at all.
+
+  A partition whose answer reached further than the data it held is now rebuilt
+  with a crop widened by exactly as much as its own answers asked for, and re-run.
+  Only the partitions that need it pay for it, so data whose crops were already
+  sufficient is unaffected. On a globally spread grid this took the mean error
+  from 2.46% to 0.54% and the worst from 129.16% to 2.23%, and left no point
+  without an answer, at a cost of 14.7 s against 28.7 s. Two distant survey
+  clusters were already sound and are unchanged.
+
+  Widening stops at 40 degrees, roughly 4400 km of reference data around a
+  partition. A location with nothing in range even then is reported rather than
+  chased, which is what happens in the Southern Ocean, GSHHG's L1 shoreline
+  holding no Antarctic coast.
+
+- The empty-crop warnings no longer fire on a partition that widening goes on to
+  fix, which reported nulls the finished run did not have. A module now warns only
+  when its whole run cropped to nothing, and what survives widening is counted
+  once, at the end.
+
+### Changed
+
+- **Corrected the accuracy figures published in 0.14.0.** The reference harness
+  behind them read a stale output file whenever a measurement run failed,
+  attributing one point's distance to another. Re-measured against a harness that
+  verifies every run, a globally spread grid gives `--region auto` 30.54% mean and
+  974.72% worst error, not the 23.85% and 99.11% published, and `--partition` as
+  shipped in 0.14.0 gives 2.46% and 129.16%, not 6.68% and 98.79%. The conclusion
+  is unchanged and stronger: partitioning is worth far more than the old numbers
+  suggested.
+
 ## [0.14.0] - 2026-08-07
 
 ### Added
@@ -26,13 +66,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
   Measured against every point re-run alone with the whole globe indexed and the
   projection centered on itself. Two survey clusters an ocean apart went from
-  8.40% mean error to 0.16%, with nothing worse than 0.62%, and were also 3 times
-  quicker and 6 times smaller in memory, since two tight boxes index far less
-  than one box stretched between them. A grid spread evenly over the globe went
-  from 23.85% mean to 6.68%, but kept a bad tail: 17 of 138 points remained over
-  2%, because tight crops introduce a cropping error that the partition tolerance
-  does not govern. Below about 5000 km of span the run yields a single partition
-  and matches `--region auto` to within centimetres.
+  8.60% mean error to 0.15%, and were also smaller in memory, since two tight
+  boxes index far less than one box stretched between them. A grid spread evenly
+  over the globe went from 30.54% mean to 2.46%, but kept a bad tail, because
+  tight crops introduce a cropping error that the partition tolerance does not
+  govern; that tail is fixed in 0.15.0. Below about 5000 km of span the
+  run yields a single partition and matches `--region auto` to within centimetres.
+
+  (These figures were corrected after release; see 0.15.0.)
 
   For `place` the effect is categorical rather than numerical: on 540 globally
   spread points the two runs named a different nearest country for 91 of them,

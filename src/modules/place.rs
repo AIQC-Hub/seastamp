@@ -129,23 +129,23 @@ impl PlaceEnricher {
                 .collect(),
         };
 
-        // One line for the run, not one per partition: with dozens of them the
-        // per-partition version would bury everything else.
-        let no_country = built.iter().filter(|e| e.countries.is_empty()).count();
-        if no_country > 0 {
+        // Only a run that matched nothing at all is worth saying here; a single
+        // empty partition gets its crop widened and retried, so warning now
+        // would report an empty column the finished run does not have.
+        if built.iter().all(|e| e.countries.is_empty()) {
             eprintln!(
-                "[seastamp] warning: {no_country} partition(s) matched no country polygon, so \
-                 country is empty for points there."
+                "[seastamp] warning: no country polygons overlap any partition, so country will \
+                 be empty for every row. Check --countries against your points."
             );
         }
-        let no_lau = built
+        if built
             .iter()
-            .filter(|e| e.municipalities.as_ref().is_some_and(|m| m.is_empty()))
-            .count();
-        if no_lau > 0 {
+            .all(|e| e.municipalities.as_ref().is_some_and(|m| m.is_empty()))
+            && built.iter().any(|e| e.municipalities.is_some())
+        {
             eprintln!(
-                "[seastamp] warning: {no_lau} partition(s) matched no municipality polygon. GISCO \
-                 LAU covers Europe only, so this is expected outside it."
+                "[seastamp] warning: no municipality polygons overlap any partition. GISCO LAU \
+                 covers Europe only, so this is expected outside it."
             );
         }
         Ok(built)
@@ -237,6 +237,29 @@ impl Enricher for PlaceEnricher {
     /// boundary for points inside no polygon, which is a planar comparison too.
     fn projection_center(&self) -> Option<(f64, f64)> {
         Some(self.countries.center())
+    }
+
+    /// Either lookup reaching past its crop makes the whole row provisional:
+    /// the country and the municipality are cropped to the same box, and a row
+    /// with one sound column and one suspect one is not worth keeping apart.
+    ///
+    /// A municipality match beyond `--max-municipality-dist` is deliberately
+    /// exempt. It has already been discarded on purpose, so widening the crop to
+    /// chase a nearer one that would also be discarded is wasted work.
+    fn crop_shortfall(&self, lon: f64, lat: f64) -> f64 {
+        let country = self.countries.crop_shortfall(lon, lat);
+        let muni = match (&self.municipalities, self.max_municipality_dist_m) {
+            (None, _) => 0.0,
+            // A match already past the cutoff has been discarded on purpose, so
+            // widening the crop to chase a nearer one that would also be
+            // discarded is wasted work.
+            (Some(m), Some(max)) => match m.locate_with_dist(lon, lat) {
+                Some((_, d)) if d > max => 0.0,
+                _ => m.crop_shortfall(lon, lat),
+            },
+            (Some(m), None) => m.crop_shortfall(lon, lat),
+        };
+        country.max(muni)
     }
 
     fn outputs(&self) -> Vec<OutputSpec> {

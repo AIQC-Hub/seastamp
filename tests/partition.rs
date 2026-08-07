@@ -399,3 +399,122 @@ fn the_reported_distortion_bounds_every_partition() {
         assert!(p.distortion <= worst, "a partition beat the reported worst case");
     }
 }
+
+/// A crop's reach must be an under-estimate. The widening loop trusts it to
+/// decide an answer is final, so an over-estimate would ship a distance that a
+/// wider crop would have corrected, which is the whole failure being fixed.
+#[test]
+fn crop_reach_never_overstates() {
+    use seastamp::geo::haversine_m;
+    use seastamp::geo::vector::crop_reach_m;
+
+    let crop = BBox { min_lon: -20.0, max_lon: 20.0, min_lat: 30.0, max_lat: 70.0 };
+    for &(lon, lat) in &[(0.0, 50.0), (-19.0, 31.0), (19.0, 69.0), (5.0, 68.0), (-15.0, 45.0)] {
+        let reach = crop_reach_m(&crop, lon, lat);
+        // the true distance to each edge, sampled densely along it
+        let mut nearest = f64::INFINITY;
+        for i in 0..=400 {
+            let t = i as f64 / 400.0;
+            let x = crop.min_lon + t * (crop.max_lon - crop.min_lon);
+            let y = crop.min_lat + t * (crop.max_lat - crop.min_lat);
+            for &(elon, elat) in &[
+                (x, crop.min_lat),
+                (x, crop.max_lat),
+                (crop.min_lon, y),
+                (crop.max_lon, y),
+            ] {
+                nearest = nearest.min(haversine_m(lon, lat, elon, elat));
+            }
+        }
+        assert!(
+            reach <= nearest,
+            "reach {reach:.0} m overstates the true {nearest:.0} m at ({lon}, {lat})"
+        );
+    }
+    // a point outside the box is not covered by it at all
+    assert_eq!(crop_reach_m(&crop, 100.0, 50.0), 0.0);
+}
+
+/// The fix itself: a point whose nearest coast lies well outside its own
+/// partition's crop must still get the right answer, because the partition is
+/// rebuilt wider rather than left to report whatever happened to be in range.
+#[test]
+fn a_partition_cropped_too_tightly_is_widened() {
+    // One cluster of points with no coastline anywhere near it: the only
+    // shoreline sits far to the east, well beyond the usual crop.
+    let pts = [(0.0, 0.0), (1.0, 1.0), (-1.0, -1.0)];
+    let far_coast: Vec<Vec<(f64, f64)>> = vec![vec![(40.0, -5.0), (40.0, 5.0)]];
+
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out.parquet");
+    let rings = far_coast.clone();
+    let build = move |regions: &[(BBox, Laea)]| {
+        Ok(regions
+            .iter()
+            .map(|&(bbox, proj)| {
+                Box::new(CoastEnricher::from_rings(
+                    rings.clone(),
+                    bbox,
+                    proj,
+                    DistUnit::Km,
+                    "dist_to_coast".into(),
+                )) as Box<dyn Enricher>
+            })
+            .collect())
+    };
+    let outputs = [OutputSpec {
+        name: "dist_to_coast".into(),
+        kind: OutputKind::Float,
+    }];
+    run_partitioned(&build, &outputs, frame(&pts), &settings(true), &out, Format::Parquet).unwrap();
+    let got = dists(&read_back(&out));
+
+    // Against the same coastline with nothing cropped away at all.
+    for (i, &pt) in pts.iter().enumerate() {
+        let d2 = dir.path().join("ref.parquet");
+        let enr = CoastEnricher::from_rings(
+            far_coast.clone(),
+            GLOBAL,
+            Laea::new(pt.0, pt.1),
+            DistUnit::Km,
+            "dist_to_coast".into(),
+        );
+        run_module(&enr, frame(&[pt]), &settings(false), &d2, Format::Parquet).unwrap();
+        let want = dists(&read_back(&d2))[0];
+        assert!(
+            got[i].is_finite(),
+            "point {pt:?} got no distance at all; the crop was never widened"
+        );
+        let err = (got[i] - want).abs() / want;
+        assert!(
+            err <= DEFAULT_TOLERANCE,
+            "point {pt:?}: {:.1} km against {want:.1} km uncropped, {:.1}% out",
+            got[i],
+            err * 100.0
+        );
+    }
+}
+
+/// Widening must not fire when the crop was already sufficient, or every run
+/// pays for the rare case. A coast running through the points is comfortably
+/// inside the first crop.
+#[test]
+fn a_sufficient_crop_is_not_widened() {
+    use seastamp::pipeline::Enricher as _;
+
+    let coast: Vec<Vec<(f64, f64)>> = vec![vec![(20.0, 58.0), (20.0, 62.0)]];
+    let region = BBox { min_lon: 15.0, max_lon: 25.0, min_lat: 55.0, max_lat: 65.0 };
+    let enr = CoastEnricher::from_rings(
+        coast,
+        region,
+        Laea::new(20.0, 60.0),
+        DistUnit::Km,
+        "dist_to_coast".into(),
+    );
+    // a point a few tens of km from the coast, far inside the crop
+    assert_eq!(
+        enr.crop_shortfall(20.5, 60.0),
+        0.0,
+        "a coast well inside the crop must read as final"
+    );
+}

@@ -18,7 +18,7 @@ use rayon::prelude::*;
 
 use crate::cli::Format;
 use crate::config::{BBox, Settings};
-use crate::geo::partition::{partition, worst_distortion, Partition, DEFAULT_TOLERANCE};
+use crate::geo::partition::{partition, worst_distortion, DEFAULT_TOLERANCE};
 use crate::geo::projection::{laea_error_at, DISTORTION_LIMIT};
 use crate::geo::vector::crop_fraction;
 use crate::geo::Laea;
@@ -63,6 +63,24 @@ pub trait Enricher: Sync {
     /// have made the work sequential anyway.
     fn parallel(&self) -> bool {
         true
+    }
+
+    /// How far past the cropped data this location's answer had to reach, in
+    /// meters, or `0.0` when the answer is final.
+    ///
+    /// Cropping keeps a region's reference data small, but an answer that
+    /// reaches further than the crop does is only provisional: a nearer feature
+    /// may be sitting just outside. `--partition` widens by exactly this much
+    /// and re-runs, so returning the shortfall rather than a bare "yes" is what
+    /// lets one rebuild fix the partition instead of a doubling ladder.
+    ///
+    /// Be **conservative**: over-report when soundness is in doubt, since an
+    /// over-report costs a re-crop and an under-report ships a wrong number.
+    /// `INFINITY` means nothing was found at all and only a global crop will do.
+    ///
+    /// The default is `0.0`, for modules that crop nothing.
+    fn crop_shortfall(&self, _lon: f64, _lat: f64) -> f64 {
+        0.0
     }
 
     /// The center of the planar projection this module measures in, as
@@ -335,23 +353,50 @@ fn finish(
 /// under the budget and reads once regardless.
 const CROP_BUDGET_GLOBES: f64 = 1.5;
 
-/// Group partitions into batches whose crops fit the budget, preserving order.
-/// A single partition over budget forms a batch of its own: the budget bounds
-/// what batching can help with, not what a run is allowed to do.
-fn batches(parts: &[Partition]) -> Vec<std::ops::Range<usize>> {
+/// Group crop boxes into batches that fit the budget, preserving order. A single
+/// box over budget forms a batch of its own: the budget bounds what batching can
+/// help with, not what a run is allowed to do.
+fn batches(boxes: &[BBox]) -> Vec<std::ops::Range<usize>> {
     let mut out = Vec::new();
     let (mut start, mut acc) = (0, 0.0);
-    for (i, p) in parts.iter().enumerate() {
-        let f = crop_fraction(&p.bbox);
+    for (i, b) in boxes.iter().enumerate() {
+        let f = crop_fraction(b);
         if i > start && acc + f > CROP_BUDGET_GLOBES {
             out.push(start..i);
             (start, acc) = (i, 0.0);
         }
         acc += f;
     }
-    out.push(start..parts.len());
+    out.push(start..boxes.len());
     out
 }
+
+/// Widening a partition whose answers reached past the data it was given.
+///
+/// Cropping to a partition's own extent plus the usual margin suits points near
+/// a coast and is far too tight for points in open water, whose nearest
+/// shoreline can be two thousand km away. Rather than pad every partition for
+/// the worst case, which would cost the memory partitioning exists to save, the
+/// few partitions that turn out to need it are rebuilt exactly as much wider as
+/// their own answers asked for.
+///
+/// The slack covers the gap between [`crate::geo::vector::crop_reach_m`], which
+/// deliberately under-states a crop's reach, and the real box; without it a
+/// partition would come back a second time for the few km it was short. The
+/// minimum step stops a tiny shortfall from costing a rebuild that barely
+/// widens anything.
+const WIDEN_SLACK: f64 = 1.25;
+const WIDEN_MIN_STEP_DEG: f64 = 5.0;
+///
+/// The cap is deliberately not the whole globe. Widening to 40 degrees puts
+/// roughly 4400 km of reference data around a partition, further than any real
+/// nearest-coast distance, while a global crop per partition would cost a
+/// full-world index each and undo the memory saving partitioning exists for. A
+/// point still unresolved at the cap is reported rather than chased.
+const WIDEN_MAX_DEG: f64 = 40.0;
+
+/// Meters per degree of latitude, for turning a shortfall into a crop margin.
+const DEG_M: f64 = crate::geo::projection::MEAN_RADIUS_M * std::f64::consts::PI / 180.0;
 
 /// Build the enrichers for one batch of partitions, given each partition's crop
 /// box and projection. A module implements this by reading its reference data
@@ -383,43 +428,107 @@ pub fn run_partitioned(
     if parts.is_empty() {
         return Err("--partition found no usable coordinates in the input".into());
     }
-    let batched = batches(&parts);
     eprintln!(
-        "[seastamp] --partition: {} partition{} over {} unique locations, worst distortion {:.2}%{}",
+        "[seastamp] --partition: {} partition{} over {} unique locations, worst distortion {:.2}%",
         parts.len(),
         if parts.len() == 1 { "" } else { "s" },
         r.uniq.len(),
         worst_distortion(&parts) * 100.0,
-        if batched.len() > 1 {
-            format!(
-                ", reference data read {} times to stay within memory",
-                batched.len()
-            )
-        } else {
-            String::new()
-        }
     );
 
     // One slot per unique location. Every location belongs to exactly one
     // partition (`reduce` has already dropped the unusable ones), so every slot
     // is filled before `finish` reads them.
     let mut results: Vec<Option<Vec<Value>>> = (0..r.uniq.len()).map(|_| None).collect();
-    for range in batches(&parts) {
-        let group = &parts[range];
-        let regions: Vec<(BBox, Laea)> = group
+
+    // Partitions still to do, and how much extra crop each has earned. A
+    // partition leaves this list once its answers no longer reach past its own
+    // data, or once widening has covered the globe and there is nothing further
+    // to try.
+    let mut todo: Vec<usize> = (0..parts.len()).collect();
+    let mut extra = vec![0.0_f64; parts.len()];
+    let (mut passes, mut widened) = (0usize, 0usize);
+
+    while !todo.is_empty() {
+        let boxes: Vec<BBox> = todo
             .iter()
-            .map(|p| (p.bbox, Laea::new(p.center.0, p.center.1)))
+            .map(|&i| crate::geo::vector::expand(&parts[i].bbox, extra[i]))
             .collect();
-        let enrichers = build(&regions)?;
-        if enrichers.len() != group.len() {
-            return Err("internal error: an enricher per partition was not built".into());
-        }
-        for (p, enr) in group.iter().zip(&enrichers) {
-            let locs: Vec<(f64, f64)> = p.members.iter().map(|&i| r.uniq[i]).collect();
-            for (&i, v) in p.members.iter().zip(enrich_all(enr.as_ref(), &locs)) {
-                results[i] = Some(v);
+        let mut retry: Vec<usize> = Vec::new();
+        for range in batches(&boxes) {
+            passes += 1;
+            let group = &todo[range.clone()];
+            let regions: Vec<(BBox, Laea)> = group
+                .iter()
+                .zip(&boxes[range])
+                .map(|(&i, &b)| (b, Laea::new(parts[i].center.0, parts[i].center.1)))
+                .collect();
+            let enrichers = build(&regions)?;
+            if enrichers.len() != group.len() {
+                return Err("internal error: an enricher per partition was not built".into());
+            }
+            for (&pi, enr) in group.iter().zip(&enrichers) {
+                let p = &parts[pi];
+                let locs: Vec<(f64, f64)> = p.members.iter().map(|&i| r.uniq[i]).collect();
+                for (&i, v) in p.members.iter().zip(enrich_all(enr.as_ref(), &locs)) {
+                    results[i] = Some(v);
+                }
+                // Widen the whole partition by whatever its hungriest point
+                // needed, so one rebuild settles it rather than a ladder of
+                // doubling ones. A little slack on top absorbs the difference
+                // between the conservative reach estimate and the real crop.
+                let short = locs
+                    .iter()
+                    .map(|&(lo, la)| enr.crop_shortfall(lo, la))
+                    .fold(0.0_f64, f64::max);
+                if short > 0.0 && extra[pi] < WIDEN_MAX_DEG {
+                    let want = if short.is_finite() {
+                        extra[pi] + short / DEG_M * WIDEN_SLACK
+                    } else {
+                        WIDEN_MAX_DEG // nothing found at all: widen as far as allowed
+                    };
+                    let floor = (extra[pi] + WIDEN_MIN_STEP_DEG).min(WIDEN_MAX_DEG);
+                    extra[pi] = want.max(floor).min(WIDEN_MAX_DEG);
+                    retry.push(pi);
+                }
             }
         }
+        widened += retry.len();
+        todo = retry;
+    }
+
+    if widened > 0 {
+        eprintln!(
+            "[seastamp] --partition: {widened} partition rebuild(s) with a wider crop, where an \
+             answer reached past the data the first crop held."
+        );
+    }
+    if passes > 1 {
+        eprintln!("[seastamp] --partition: reference data read {passes} times.");
+    }
+
+    // Only now is it true. A partition that found nothing on the first pass has
+    // had its crop widened and been tried again, so counting empties earlier
+    // would have reported nulls the finished run does not have.
+    let unresolved = results
+        .iter()
+        .filter(|v| {
+            v.as_ref().is_some_and(|vals| {
+                vals.iter().all(|v| match v {
+                    Value::Float(f) => f.is_nan(),
+                    Value::Text(t) => t.is_none(),
+                    Value::Bool(b) => b.is_none(),
+                })
+            })
+        })
+        .count();
+    if unresolved > 0 {
+        eprintln!(
+            "[seastamp] warning: {unresolved} location(s) had no reference feature within reach \
+             even after widening the crop, so their columns are null. A dataset that does not \
+             cover the area is the usual cause: GSHHG's L1 shoreline, for one, stops at 69S and \
+             holds no Antarctic coast."
+        );
     }
 
     let results: Vec<Vec<Value>> = results

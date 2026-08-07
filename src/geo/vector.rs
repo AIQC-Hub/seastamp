@@ -123,6 +123,33 @@ fn rings_bbox(rings: &Rings) -> Option<BBox> {
     b
 }
 
+/// A lower bound, in meters, on how far a crop box extends around a point: no
+/// feature nearer than this to `(lon, lat)` can have been cropped away.
+///
+/// Deliberately conservative in one direction. Every approximation here rounds
+/// the reach **down**, because an over-estimate would declare a cropped-away
+/// answer sound, which is the failure this exists to catch. An under-estimate
+/// only costs a needless re-crop.
+///
+/// East-west, the nearest point of a meridian edge sits at roughly the query
+/// point's own latitude, so the width is taken there rather than at the worst
+/// latitude anywhere in the box. Taking the worst was correct but so pessimistic
+/// for a tall box that sound answers were flagged as needing a re-crop, which is
+/// the expensive direction to be wrong in. A small safety factor keeps it a
+/// lower bound. A point outside the box has no reach at all.
+pub fn crop_reach_m(crop: &BBox, lon: f64, lat: f64) -> f64 {
+    if !crop.contains(lon, lat) {
+        return 0.0;
+    }
+    const SAFETY: f64 = 0.95;
+    let deg_m = crate::geo::projection::MEAN_RADIUS_M * std::f64::consts::PI / 180.0;
+    let ns = (lat - crop.min_lat).min(crop.max_lat - lat) * deg_m;
+    let ew = (lon - crop.min_lon).min(crop.max_lon - lon)
+        * deg_m
+        * lat.abs().min(89.9).to_radians().cos();
+    ns.min(ew).max(0.0) * SAFETY
+}
+
 /// Whether a feature's lon/lat bounding box meets a crop box at all. Features
 /// are kept whole or dropped whole, never clipped.
 fn overlaps(b: &BBox, crop: &BBox) -> bool {
@@ -155,6 +182,9 @@ pub struct PolygonIndex<A> {
     bbox_tree: RTree<PolyBBox>,
     seg_tree: RTree<TaggedSegment>,
     proj: Laea,
+    /// The grown box the features were cropped to, kept so the index can say
+    /// whether an answer might have been changed by a feature outside it.
+    crop: BBox,
 }
 
 impl<A> PolygonIndex<A> {
@@ -169,7 +199,7 @@ impl<A> PolygonIndex<A> {
             .into_iter()
             .filter(|(rings, _)| rings_bbox(rings).is_some_and(|b| overlaps(&b, &crop)))
             .collect();
-        Self::from_kept(kept, proj)
+        Self::from_kept(kept, proj, crop)
     }
 
     /// Build one index per `(region, projection)` from a single feature set, for
@@ -200,13 +230,13 @@ impl<A> PolygonIndex<A> {
                     .filter(|(_, b)| b.is_some_and(|b| overlaps(&b, &crop)))
                     .map(|((rings, attr), _)| (rings.clone(), attr.clone()))
                     .collect();
-                Self::from_kept(kept, proj)
+                Self::from_kept(kept, proj, crop)
             })
             .collect()
     }
 
     /// Index features that have already survived cropping.
-    fn from_kept(kept: Vec<(Rings, A)>, proj: Laea) -> Self {
+    fn from_kept(kept: Vec<(Rings, A)>, proj: Laea, crop: BBox) -> Self {
         let mut boxes = Vec::with_capacity(kept.len());
         let mut segs = Vec::new();
         for (idx, (rings, _)) in kept.iter().enumerate() {
@@ -229,6 +259,23 @@ impl<A> PolygonIndex<A> {
             bbox_tree: RTree::bulk_load(boxes),
             seg_tree: RTree::bulk_load(segs),
             proj,
+            crop,
+        }
+    }
+
+    /// How far past the cropped data the answer for this point had to reach, in
+    /// meters, or `0.0` when it is final.
+    ///
+    /// A containment is final: a point inside a feature is inside it whatever
+    /// else was cropped away. Only the nearest-boundary fallback is at risk, and
+    /// only when it reached further than the crop does, so something nearer
+    /// could be sitting just outside. An empty index can never answer anything
+    /// and is always provisional.
+    pub fn crop_shortfall(&self, lon: f64, lat: f64) -> f64 {
+        match self.locate_with_dist(lon, lat) {
+            None => f64::INFINITY,
+            Some((_, 0.0)) => 0.0,
+            Some((_, d)) => (d - crop_reach_m(&self.crop, lon, lat)).max(0.0),
         }
     }
 

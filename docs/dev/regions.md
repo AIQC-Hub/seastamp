@@ -117,29 +117,44 @@ and clones only what each keeps. Feature bounding boxes are computed once there
 rather than per region: a box costs a pass over every vertex, and with dozens of
 partitions that would dominate.
 
-**The tolerance bounds projection error only, not total error.** A partition also
-crops tightly, and a point whose nearest feature lies outside its crop gets an
-over-estimate that nothing here governs. Measured against every point re-run alone
-with a global crop and its own projection center: a globally spread grid improved
-from 23.85% mean to 6.68%, but 17 of 138 points stayed over 2% and the worst was
-98.79%, all of them open-ocean points that lost their coastline to the crop. Two
-distant clusters, where each crop still contains the coast its points care about,
-went from 8.40% to 0.16% with nothing over 0.62%. Do not describe the reported
-distortion as the accuracy of the output; `docs/src/reference/auto-or-partition.md`
-is the user-facing statement of this and must stay in step.
+**The tolerance bounds projection error only.** Cropping is a second, independent
+error: a partition whose nearest feature lies outside its crop would report an
+over-estimate. That is handled by a separate mechanism, not by the tolerance.
+`Enricher::crop_shortfall` reports how far past the cropped data an answer had to
+reach, `run_partitioned` widens that partition by exactly that much (plus
+`WIDEN_SLACK`) and re-runs it, and the loop repeats until nothing is short or the
+crop hits `WIDEN_MAX_DEG`.
 
-Cost, on 540 globally spread points. `coast` on GSHHG `f`: 6.0 s and 0.95 GB for
-`--region global` against 21 s and 1.4 GB over 52 partitions in 3 passes. `place`
-on Natural Earth: 0.5 s and 0.09 GB against 3.0 s and 0.36 GB, and the two runs
-named a different nearest country for 91 of the 540 points, `--partition` being
-right on every spot check. Clustered data is *cheaper* partitioned (1.80 s and
-262 MB against 0.55 s and 40 MB), since one box spanning two clusters must hold
-everything between them.
+**`crop_reach_m` must under-state a crop's reach, never over-state it.** An
+over-estimate declares a cropped-away answer final and ships a wrong number,
+which is the whole failure this exists to prevent. An under-estimate only costs a
+needless rebuild. It was originally so pessimistic (worst latitude anywhere in
+the box) that sound answers triggered rebuilds and a two-partition run went from
+0.5 s to 107 s; taking the width at the point's own latitude fixed that. There is
+a test pinning the bound against a densely sampled true distance.
 
-The per-partition "nothing overlapped this region" warnings are aggregated into
-one count. Do not restore the per-partition version: at 52 partitions it buries
-everything else in the log. The counts are per batch, so the wording avoids "of M
-partitions", which would be batch-relative and misleading.
+Widening stops at 40 degrees rather than the globe on purpose: a global crop per
+partition costs a full-world index each and undoes the memory saving partitioning
+exists for.
+
+Measured against every point re-run alone with a global crop and its own
+projection center. A globally spread grid: `auto` 30.54% mean and 974.72% worst,
+`--partition` 2.46% and 129.16% before the widening pass, 0.54% and 2.23% after.
+Two distant clusters, where each crop already held the coast its points care
+about: 8.60% to 0.15%, unchanged by widening. Cost of the widening pass on the
+global grid: 14.7 s to 28.7 s.
+
+**Beware the measurement harness.** An earlier round of these figures was wrong
+because the reference script read a stale output file when a `seastamp` run
+failed, silently attributing one point's distance to another. Any harness here
+must delete the output first, check the exit status, and verify the returned
+row's coordinates match the point requested. The figures published in 0.14.0 came
+from the broken version.
+
+A module only warns when its **whole** run cropped to nothing. A single empty
+partition is not news, because widening will retry it, and warning there reported
+nulls the finished run did not have. What survives widening is counted by
+`run_partitioned` after the loop, which is the only point at which it is true.
 
 `place` decides its output column set in `run` rather than reading it off a built
 enricher, because `run_partitioned` needs the columns before any enricher exists.

@@ -67,19 +67,13 @@ impl SeaEnricher {
             .map(|index| Self::from_index(index, column.to_string()))
             .collect();
 
-        // One line for the run, not one per partition: with dozens of them the
-        // per-partition version would bury everything else. Only a partition
-        // that kept nothing is worth mentioning, and only in aggregate.
-        let empty = built.iter().filter(|e| e.index.is_empty()).count();
-        if empty == built.len() {
+        // Only a run that matched nothing at all is worth saying here; a single
+        // empty partition gets its crop widened and retried, so warning now
+        // would report an empty column the finished run does not have.
+        if built.iter().all(|e| e.index.is_empty()) {
             eprintln!(
                 "[seastamp] warning: no sea polygons overlap any partition, so every row will be \
                  empty. Check --data against your points."
-            );
-        } else if empty > 0 {
-            eprintln!(
-                "[seastamp] warning: {empty} partition(s) matched no sea polygon, so sea_name is \
-                 empty for points there."
             );
         }
         Ok(built)
@@ -112,6 +106,12 @@ impl Enricher for SeaEnricher {
     /// wrong feature.
     fn projection_center(&self) -> Option<(f64, f64)> {
         Some(self.index.center())
+    }
+
+    /// Containment is exact and final; only the nearest-boundary fallback for a
+    /// point inside no polygon can be changed by a wider crop.
+    fn crop_shortfall(&self, lon: f64, lat: f64) -> f64 {
+        self.index.crop_shortfall(lon, lat)
     }
 
     fn outputs(&self) -> Vec<OutputSpec> {
