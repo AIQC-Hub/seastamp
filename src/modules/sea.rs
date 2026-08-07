@@ -78,9 +78,8 @@ impl SeaEnricher {
             );
         } else if empty > 0 {
             eprintln!(
-                "[seastamp] warning: {empty} of {} partitions matched no sea polygon; rows in \
-                 those areas will be empty.",
-                built.len()
+                "[seastamp] warning: {empty} partition(s) matched no sea polygon, so sea_name is \
+                 empty for points there."
             );
         }
         Ok(built)

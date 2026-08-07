@@ -134,9 +134,8 @@ impl PlaceEnricher {
         let no_country = built.iter().filter(|e| e.countries.is_empty()).count();
         if no_country > 0 {
             eprintln!(
-                "[seastamp] warning: {no_country} of {} partitions matched no country polygon; \
-                 country will be empty for rows in those areas.",
-                built.len()
+                "[seastamp] warning: {no_country} partition(s) matched no country polygon, so \
+                 country is empty for points there."
             );
         }
         let no_lau = built
@@ -145,9 +144,8 @@ impl PlaceEnricher {
             .count();
         if no_lau > 0 {
             eprintln!(
-                "[seastamp] warning: {no_lau} of {} partitions matched no municipality polygon. \
-                 GISCO LAU covers Europe only, so this is expected for partitions outside it.",
-                built.len()
+                "[seastamp] warning: {no_lau} partition(s) matched no municipality polygon. GISCO \
+                 LAU covers Europe only, so this is expected outside it."
             );
         }
         Ok(built)

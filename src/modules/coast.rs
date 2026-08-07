@@ -175,10 +175,22 @@ impl CoastEnricher {
             }
         }
 
-        if segs.iter().any(|s| s.is_empty()) {
+        // With one region this is the whole run; with many it is a handful of
+        // partitions in open water, and saying "every distance will be null"
+        // would be false. Counting them is also the only warning a caller gets
+        // that a tighter crop has cost them values a global crop would have
+        // found, however distorted those were.
+        let empty = segs.iter().filter(|s| s.is_empty()).count();
+        if empty == segs.len() {
             eprintln!(
                 "[seastamp] warning: no shoreline segments overlap the region, so every distance \
-                 will be null. Check --region against your data."
+                 will be null. Check --region and --data against your points."
+            );
+        } else if empty > 0 {
+            eprintln!(
+                "[seastamp] warning: {empty} partition(s) have no shoreline within reach, so \
+                 dist_to_coast is null for points there. GSHHG L1 has no Antarctic coastline \
+                 (it stops at 69S), which is the usual cause."
             );
         }
         Ok(segs
