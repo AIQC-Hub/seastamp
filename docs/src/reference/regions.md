@@ -67,15 +67,15 @@ joins the results back together, so a globally spread table comes out as
 accurate as running each area separately would have been.
 
 > **Deciding between the two?** [auto or partition](./auto-or-partition.md)
-> compares them side by side on seven datasets and says which to use for what.
+> compares them side by side on measured datasets and says which to use for what.
 
 ```bash
 seastamp coast global-stations.parquet --data ./data/gshhg/... --partition
 ```
 
 ```
-[seastamp] --partition: 52 partitions over 540 unique locations, worst distortion 1.97%
-[seastamp] 540 rows, 540 unique locations -> global-stations.coast.parquet
+[seastamp] --partition: 33 partitions over 144 unique locations, worst distortion 1.99%
+[seastamp] 144 rows, 144 unique locations -> global-stations.coast.parquet
 ```
 
 **The split is driven by accuracy, not by a cell size or a count.** There is no
@@ -83,8 +83,9 @@ number to choose. seastamp keeps halving a group while any of its points would
 be more than 2% out, and stops as soon as none are, so the partition count is
 whatever the data needs. That last figure bounds the **projection** error: no
 distance is scaled by more than that much by the map projection it was measured
-in. It does not bound the separate error from cropping, which
-[auto or partition](./auto-or-partition.md) explains and measures.
+in. Cropping is a separate error, handled separately: a partition whose answer
+reached past the data it held is rebuilt with a wider crop and re-run. See
+[auto or partition](./auto-or-partition.md).
 
 Data that already fits one projection is left as one piece and comes out
 identical to an ordinary `--region auto` run, so the flag is safe to leave on:
@@ -96,12 +97,10 @@ identical to an ordinary `--region auto` run, so the flag is safe to leave on:
 ### What it is worth, in one line
 
 Where the points fall into a few distant clusters, `--partition` wins outright:
-one measured pair of survey areas went from 8.40% mean error to 0.16%. Where they
-are spread continuously across the globe it cuts the mean several-fold (23.85% to
-6.68%) but leaves a bad tail, because tight crops introduce an error of their own.
-Below about 5000 km of span it produces a single partition and is identical to
-`auto`. [auto or partition](./auto-or-partition.md) has the full measurements and
-explains the tail.
+one measured pair of survey areas went from 8.60% mean error to 0.15%. On a grid
+spread evenly over the globe it went from 30.54% to 0.54%. Below about 5000 km of
+span it produces a single partition and is identical to `auto`.
+[auto or partition](./auto-or-partition.md) has the full measurements.
 
 ### Limits
 

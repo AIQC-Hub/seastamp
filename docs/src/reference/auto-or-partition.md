@@ -16,8 +16,8 @@ actually is in each case.
 | Your data | Use | Why |
 |-----------|-----|-----|
 | Spans less than about 5000 km | `auto` | `--partition` produces a single partition, so the two give the same answer to within centimetres. |
-| Falls into a few distant clusters, however far apart | **`--partition`** | This is the case it wins outright. Measured below: 8.4% mean error becomes 0.16%. |
-| Is spread continuously across an ocean or the globe | `--partition`, **and check for nulls** | It cuts the average error several-fold, but the worst points stay bad for a different reason, explained below. |
+| Falls into a few distant clusters, however far apart | **`--partition`** | This is the case it wins outright. Measured below: 8.6% mean error becomes 0.15%. |
+| Is spread continuously across an ocean or the globe | **`--partition`** | It cuts the average error from tens of percent to well under one. |
 
 If you are not sure, run the default and read what seastamp prints. If it does
 not warn, `auto` was fine and `--partition` would have changed nothing.
@@ -29,7 +29,7 @@ center (0.0, 0.0), where planar distances are off by roughly 63%.
 
 ## What the numbers actually are
 
-Seven point sets, each run both ways against GSHHG `f`. **Every point** is
+Six point sets, each run both ways against GSHHG `f`. **Every point** is
 compared against a reference run of that point **alone**, with the whole globe
 indexed and the projection centered on itself, so the reference carries neither
 projection distortion nor cropping loss. These are full populations, not samples.
@@ -40,9 +40,8 @@ projection distortion nor cropping loss. These are full populations, not samples
 | Norwegian shelf | 1 314 km | 1 | \- | \- | identical to `auto` | within 2 cm |
 | Nordic seas | 3 055 km | 1 | \- | \- | identical to `auto` | within 2 cm |
 | North Atlantic | 4 806 km | 1 | \- | \- | identical to `auto` | within 22 cm |
-| Two clusters, Atlantic and Pacific | 14 298 km | 2 | 8.40% | 16.92% | **0.16%** | **0.62%** |
-| Atlantic basin | 9 865 km | 7 | 2.54% | 8.47% | **0.80%** | 20.56% |
-| Global grid | 19 999 km | 34 | 23.85% | 99.11% | **6.68%** | 98.79% |
+| Two clusters, Atlantic and Pacific | 14 298 km | 2 | 8.60% | 16.91% | **0.15%** | **0.45%** |
+| Global grid | 19 999 km | 34 | 30.54% | 974.72% | **0.54%** | **2.23%** |
 
 Three things to take from this.
 
@@ -52,19 +51,20 @@ already does. The tiny differences are floating-point noise, not method. Passing
 `--partition` to regional data costs nothing and changes nothing.
 
 **Clustered data is where partitioning wins outright.** Two survey areas on
-opposite sides of the world went from 8.40% mean error to 0.16%, with no point
-worse than 0.62%. Nothing was lost and everything improved.
+opposite sides of the world went from 8.60% mean error to 0.15%, with no point
+worse than 0.45%. Nothing was lost and everything improved.
 
-**Continuously spread data improves on average but keeps a bad tail.** The global
-grid's mean error fell from 23.85% to 6.68%, a real gain, but its worst point was
-still 98.79% out. That is not the projection failing. It is a second, different
-error that partitioning makes worse rather than better.
+**A single projection degrades further than most people expect.** On the global
+grid `auto`'s mean error was 30.54%, and its worst point came out nearly ten
+times its true distance. That is not a rounding problem, it is a different
+number. Partitioning brought the same grid to 0.54% mean and 2.23% worst.
 
-## Two errors, and only one of them is bounded
+## Two errors, and how each is handled
 
-This is the single most useful thing to understand on this page.
+A partitioned run has two independent ways of being wrong, and it is worth
+knowing which is which.
 
-### Projection error, which partitioning does bound
+### Projection error, bounded by splitting
 
 A flat projection scales distances more and more the further you go from its
 center. seastamp splits until every point is within 2% of its own partition's
@@ -72,81 +72,84 @@ center, so this error is bounded by construction, and every run reports what it
 achieved:
 
 ```
-[seastamp] --partition: 34 partitions over 144 unique locations, worst distortion 1.94%
+[seastamp] --partition: 33 partitions over 144 unique locations, worst distortion 1.99%
 ```
 
-### Cropping error, which it does not
+### Cropping error, bounded by widening
 
-Every region only indexes reference data inside its own box plus about 10
-degrees, roughly 1100 km. A point whose true nearest coastline lies beyond that
-gets the nearest one that *is* inside, which is always an **over-estimate**.
+Every region only indexes reference data inside its own box plus a margin. A
+point whose true nearest coastline lies beyond that would get the nearest one
+that *is* inside, which is always an over-estimate.
 
-`auto` on globally spread data hardly suffers this, because its single box is
-effectively the whole world. `--partition` uses many tight boxes, so a point far
-out in open water can lose the coastline it should have matched. In the global
-grid above, **17 of 138 points were still more than 2% out**, and the worst were
-open-ocean points whose nearest land is further away than their partition can
-see.
-
-> **The reported "worst distortion" is not the accuracy of the output.** It
-> describes the projection only. A run can report 1.94% and still contain a point
-> that is 98% out, because that point lost its coastline to cropping rather than
-> to the projection.
-
-This is why the decision table says "check for nulls" for continuously spread
-data. It is also why clustered data does so much better: a tight cluster's box
-still comfortably contains the coast its own points care about.
-
-### When a point gets no answer at all
-
-Taken far enough, cropping leaves nothing to match at all and the output is null.
-In the global grid, 6 of 144 points came back null under `--partition` and had a
-number under `auto`.
-
-Every one was in the Southern Ocean, and the cause is the dataset rather than
-seastamp: **GSHHG's L1 shoreline stops at 69S and holds no Antarctic coastline**
-(Antarctica is in L5 and L6, which `coast` does not read). The nearest L1 land to
-those points is another continent entirely, far outside their partition. `auto`
-returned a number for them only because its global box reached that far
-continent, and that number was itself heavily distorted.
-
-seastamp says so rather than leaving you to notice:
+Partitions crop tightly, which is what makes them cheap, and tight crops suit
+points near a coast but not points in open water, whose nearest shoreline can be
+two thousand km away. So seastamp checks: **if a partition's answer reached
+further than the data that partition was given, the answer is not final.** Those
+partitions are rebuilt with a crop widened by exactly as much as their own
+answers asked for, and re-run.
 
 ```
-[seastamp] warning: 1 partition(s) have no shoreline within reach, so
-dist_to_coast is null for points there. GSHHG L1 has no Antarctic coastline
-(it stops at 69S), which is the usual cause.
+[seastamp] --partition: 31 partition rebuild(s) with a wider crop, where an
+answer reached past the data the first crop held.
 ```
 
-A null is easy to spot and filter. A confidently wrong number is not.
+Only the partitions that need it pay for it. A run whose crops were already
+sufficient reports no rebuilds and costs nothing extra, and clustered data
+typically needs one or none.
+
+> **The reported "worst distortion" describes the projection only.** It is not a
+> bound on the total error of the output, and the widening pass above is what
+> handles the other half.
+
+### The limit of it
+
+Widening stops at 40 degrees, about 4400 km of reference data around a
+partition, which is further than any real nearest-coast distance. Going all the
+way to a global crop for each partition would cost a full-world index apiece and
+undo the memory saving partitioning exists for.
+
+A point can still come back null if its reference dataset genuinely holds nothing
+in range. The usual cause is not the crop but the data: **GSHHG's L1 shoreline
+stops at 69S and holds no Antarctic coastline** (Antarctica is in L5 and L6,
+which `coast` does not read), so points deep in the Southern Ocean have no nearby
+L1 land to find. seastamp says so rather than leaving you to notice:
+
+```
+[seastamp] warning: 2 location(s) had no reference feature within reach even
+after widening the crop, so their columns are null. A dataset that does not
+cover the area is the usual cause: GSHHG's L1 shoreline, for one, stops at 69S
+and holds no Antarctic coast.
+```
 
 ## What it costs
 
 Each partition crops its own copy of the reference data, so partitioning usually
-does more work. On the 540-point global set:
+does more work. On the global grid above:
 
-| Command | `auto` | `--partition` |
-|---------|--------|---------------|
-| `coast` (GSHHG `f`) | 6.0 s, 0.95 GB | 21 s, 1.4 GB |
-| `place` (Natural Earth) | 0.5 s, 0.09 GB | 3.0 s, 0.36 GB |
+| Run | Time | Peak memory |
+|-----|------|-------------|
+| `auto` | 7.1 s | 0.97 GB |
+| `--partition` | 28.7 s | 1.43 GB |
+
+Roughly half of that is the widening pass rebuilding the 31 partitions whose
+first crop turned out too tight.
 
 **But clustered data is cheaper partitioned, not dearer.** Tight boxes index far
 less than one box stretched across the gap between the clusters:
 
 | Two clusters, Atlantic and Pacific | Time | Peak memory |
 |---|------|-------------|
-| `auto` | 1.80 s | 262 MB |
-| `--partition` | 0.55 s | 40 MB |
+| `auto` | 1.8 s | 262 MB |
+| `--partition` | 1.8 s | 90 MB |
 
 One box spanning both oceans has to hold the Americas in between, which no point
 in the input is anywhere near.
 
 When the partitions will not fit in memory together, seastamp reads the reference
-file more than once rather than growing:
+file again rather than growing, and says how often it had to:
 
 ```
-[seastamp] --partition: 52 partitions over 540 unique locations, worst distortion
-1.97%, reference data read 3 times to stay within memory
+[seastamp] --partition: reference data read 7 times.
 ```
 
 ## Which commands it affects
