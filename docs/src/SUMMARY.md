@@ -11,6 +11,7 @@
 - [place](./commands/place.md)
 - [nearest](./commands/nearest.md)
 - [regions](./commands/regions.md)
+- [completions](./commands/completions.md)
 
 # Reference
 

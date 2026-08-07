@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-08-07
+
+### Added
+
+- `seastamp completions <shell>`, which prints a shell completion script for
+  bash, zsh, fish, elvish, or PowerShell. Tab completes subcommands, flags,
+  enumerated values such as `--in-format`, and paths (as files, or as a
+  directory for `coast --data`).
+
+  `--region` completes from all 109 accepted names: `auto`, the seven presets,
+  and the 101 IHO Sea Areas. They reach the shell through a value parser that
+  advertises them without restricting what `--region` accepts, so an unknown
+  name still reaches the word-level "did you mean" rather than a flat clap
+  rejection. The same names are hidden from `--help`, where they would bury
+  every other flag.
+
+  In bash and zsh a name containing a space completes only to its first word,
+  because both shells receive the candidates as one space-separated list. It
+  fails loudly: `--region Barentsz` reports "Did you mean: Barentsz Sea?". fish
+  completes such names whole.
+
+### Fixed
+
+- The `--region` help text offered `"Barents Sea"` as its example of an IHO Sea
+  Areas name. IHO v3 spells it `Barentsz Sea`, so the example was one of the few
+  strings the flag rejects.
+
 ## [0.12.0] - 2026-08-04
 
 ### Added

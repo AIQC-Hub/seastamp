@@ -1,4 +1,6 @@
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::builder::{PossibleValue, TypedValueParser};
+use clap::{Args, Parser, Subcommand, ValueEnum, ValueHint};
+use std::ffi::OsStr;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -36,6 +38,26 @@ remember that for `coast` it also sets where distances are measured from, so a v
 makes a poor region. An area whose box crosses the antimeridian is flagged and has min_lon \
 greater than max_lon; seastamp cannot take such a box, so run it as two.")]
     Regions(RegionsArgs),
+    /// Print a shell completion script to stdout
+    #[command(after_help = "The script completes subcommands, flags, their enumerated values, \
+and the names --region accepts. Write it somewhere your shell reads at startup:\n\n  \
+bash:  seastamp completions bash > ~/.local/share/bash-completion/completions/seastamp\n  \
+zsh:   seastamp completions zsh > ~/.zfunc/_seastamp        (with ~/.zfunc on $fpath)\n  \
+fish:  seastamp completions fish > ~/.config/fish/completions/seastamp.fish\n\n\
+Regenerate it after upgrading seastamp: the script is a snapshot of this version's CLI.\n\n\
+One rough edge, in bash and zsh only: a region name containing a space completes to its \
+first word, so 'Barentsz Sea' stops at 'Barentsz'. Running that reports the full name back \
+at you, so finish it by hand or quote it. fish completes such names whole.")]
+    Completions(CompletionsArgs),
+}
+
+/// The `completions` generator. It runs no pipeline and reads no data: it walks
+/// the clap command tree defined in this file and writes a script for one shell.
+#[derive(Args, Debug)]
+pub struct CompletionsArgs {
+    /// Shell to generate the script for
+    #[arg(value_enum)]
+    pub shell: clap_complete::Shell,
 }
 
 /// Input / output tabular format. `Auto` infers from the file extension and
@@ -64,14 +86,15 @@ pub enum DistUnit {
 #[derive(Args, Debug)]
 pub struct CommonArgs {
     /// Input file (parquet, csv, tsv, csv.gz, tsv.gz)
+    #[arg(value_hint = ValueHint::FilePath)]
     pub input: PathBuf,
 
     /// Output file (default: <input stem>.<module>.<input format> beside the input)
-    #[arg(short, long)]
+    #[arg(short, long, value_hint = ValueHint::FilePath)]
     pub output: Option<PathBuf>,
 
     /// TOML config file. CLI flags override individual fields.
-    #[arg(short = 'c', long)]
+    #[arg(short = 'c', long, value_hint = ValueHint::FilePath)]
     pub config: Option<PathBuf>,
 
     /// Input format (default: inferred from the extension, else parquet)
@@ -104,6 +127,44 @@ pub struct CommonArgs {
     pub threads: Option<usize>,
 }
 
+/// Every name `--region` understands: `auto`, then the presets, then the IHO
+/// Sea Areas. The antimeridian crossers are in the list even though they cannot
+/// serve as a crop box, because the error they raise names the workaround, and
+/// that is more use than a name that mysteriously refuses to complete.
+pub fn region_names() -> impl Iterator<Item = &'static str> {
+    std::iter::once(crate::config::AUTO_REGION)
+        .chain(crate::config::PRESET_NAMES)
+        .chain(crate::config::IHO_AREAS.iter().map(|a| a.name))
+}
+
+/// A `--region` parser that takes any string but advertises every known name,
+/// which is what shell completion offers.
+///
+/// Staying permissive is deliberate. [`crate::config::region_bbox`] is the one
+/// place that judges a region name, and its word-level "did you mean" is better
+/// than what clap would produce here. Rejecting at the parser would split one
+/// mistake across two different messages, and would still miss a bad region set
+/// in a TOML config, which never reaches clap at all.
+#[derive(Clone, Copy, Debug)]
+struct RegionNameParser;
+
+impl TypedValueParser for RegionNameParser {
+    type Value = String;
+
+    fn parse_ref(
+        &self,
+        _cmd: &clap::Command,
+        _arg: Option<&clap::Arg>,
+        value: &OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        Ok(value.to_string_lossy().into_owned())
+    }
+
+    fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
+        Some(Box::new(region_names().map(PossibleValue::new)))
+    }
+}
+
 /// Region controls shared by the modules that need a bounding box (to crop the
 /// reference data) and a projection center (for planar distances). Defaults come
 /// from the resolved config; a named `--region` preset sets both at once.
@@ -111,9 +172,12 @@ pub struct CommonArgs {
 pub struct RegionArgs {
     /// Region: "auto" (the default, derived from your points), a preset
     /// (global, baltic, norway, arctic, atlantic, europe, mediterranean), or an
-    /// IHO Sea Areas name such as "Barents Sea". Run `seastamp regions` to list
-    /// every accepted name
-    #[arg(long)]
+    /// IHO Sea Areas name such as "Barentsz Sea" (the IHO spelling, which is
+    /// not always the everyday one). Run `seastamp regions` to list every
+    /// accepted name, or press Tab if completions are installed
+    // The 109 names go to shell completion but are hidden from --help, where
+    // they would bury every other flag.
+    #[arg(long, value_parser = RegionNameParser, hide_possible_values = true)]
     pub region: Option<String>,
 
     /// Western bound of the reference-data crop box
@@ -145,7 +209,7 @@ pub struct CoastArgs {
     pub region: RegionArgs,
 
     /// Directory of GSHHG shapefiles (resolution 'f' recommended)
-    #[arg(long)]
+    #[arg(long, value_hint = ValueHint::DirPath)]
     pub data: Option<PathBuf>,
 
     /// Distance unit for the output column
@@ -163,7 +227,7 @@ pub struct DepthArgs {
     pub common: CommonArgs,
 
     /// GEBCO bathymetry NetCDF file
-    #[arg(long)]
+    #[arg(long, value_hint = ValueHint::FilePath)]
     pub data: Option<PathBuf>,
 
     /// Report depth as positive below sea level (negate GEBCO elevation, which is
@@ -190,7 +254,7 @@ pub struct SeaArgs {
     pub region: RegionArgs,
 
     /// IHO Sea Areas polygons (GeoJSON or shapefile)
-    #[arg(long)]
+    #[arg(long, value_hint = ValueHint::FilePath)]
     pub data: Option<PathBuf>,
 
     /// Property / attribute field holding the sea name
@@ -210,11 +274,11 @@ pub struct PlaceArgs {
     pub region: RegionArgs,
 
     /// Natural Earth countries (shapefile) for the nearest-country lookup
-    #[arg(long)]
+    #[arg(long, value_hint = ValueHint::FilePath)]
     pub countries: Option<PathBuf>,
 
     /// GISCO LAU municipalities (shapefile) for the nearest-municipality lookup
-    #[arg(long)]
+    #[arg(long, value_hint = ValueHint::FilePath)]
     pub municipalities: Option<PathBuf>,
 
     /// Drop the municipality when the nearest one is further away than this, in
@@ -235,7 +299,7 @@ pub struct PlaceArgs {
 pub struct RegionsArgs {
     /// IHO Sea Areas polygons (GeoJSON or shapefile), or any named polygon
     /// layer. Without it, the built-in --region presets are listed instead
-    #[arg(long)]
+    #[arg(long, value_hint = ValueHint::FilePath)]
     pub data: Option<PathBuf>,
 
     /// Property / attribute field holding the area name
@@ -247,7 +311,7 @@ pub struct RegionsArgs {
     pub name: Option<String>,
 
     /// Also write the list to a file (parquet, csv, tsv, csv.gz, tsv.gz)
-    #[arg(short, long)]
+    #[arg(short, long, value_hint = ValueHint::FilePath)]
     pub output: Option<PathBuf>,
 
     /// Output format (default: inferred from --output, else parquet)
@@ -266,7 +330,7 @@ pub struct NearestArgs {
 
     /// Reference table: the second set of locations to measure the distance to
     /// (any tabular format, same as the input)
-    #[arg(long)]
+    #[arg(long, value_hint = ValueHint::FilePath)]
     pub to: PathBuf,
 
     /// Format of the reference table (default: inferred from the extension)

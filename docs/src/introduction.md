@@ -20,6 +20,7 @@ pure Rust), and reads and writes Parquet, CSV, TSV, and the gzip variants
 | [`place`](./commands/place.md) | Nearest country and municipality (Natural Earth + GISCO). |
 | [`nearest`](./commands/nearest.md) | Nearest location in a second table you supply, with its distance. |
 | [`regions`](./commands/regions.md) | List sea and ocean bounding boxes, to find a region for the commands above. |
+| [`completions`](./commands/completions.md) | Print a shell completion script, so Tab fills in commands, flags, and region names. |
 
 ## How it works
 
@@ -27,8 +28,9 @@ The five enrichment commands follow the same pipeline: read the input, reduce it
 locations with rounded coordinates (3 decimals by default), enrich those unique
 locations in parallel, then join the results back onto every input row. A file
 with millions of rows but few distinct positions is therefore cheap to enrich,
-because only the distinct positions are ever looked up. `regions` stands outside
-that pipeline: it takes no points and only lists boxes.
+because only the distinct positions are ever looked up. Two commands stand
+outside that pipeline and take no points: `regions` only lists boxes, and
+`completions` only prints a shell script.
 
 ## Quick example
 

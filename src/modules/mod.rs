@@ -5,9 +5,10 @@
 //! country and GISCO LAU municipality), and `nearest` (nearest point of a
 //! caller-supplied table).
 //!
-//! `regions` is the exception: it enriches nothing and has no `Enricher`. It
-//! lists sea and ocean bounding boxes, which is what the other modules' region
-//! options consume.
+//! Two commands stand outside that pattern, enriching nothing and owning no
+//! `Enricher`: `regions` lists sea and ocean bounding boxes, which is what the
+//! other modules' region options consume, and `completions` writes a shell
+//! completion script for the CLI as a whole.
 
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -17,6 +18,7 @@ use crate::geo::vector::Rings;
 use crate::io::{format_ext, resolve_format};
 
 pub mod coast;
+pub mod completions;
 pub mod depth;
 pub mod nearest;
 pub mod place;

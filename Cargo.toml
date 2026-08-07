@@ -1,6 +1,6 @@
 [package]
 name = "seastamp"
-version = "0.12.0"
+version = "0.13.0"
 edition = "2021"
 license = "MIT"
 description = "seastamp stamps longitude/latitude points with sea attributes: distance to coast, bathymetric depth, sea name, nearest country and municipality, and the nearest location in a table you supply"
@@ -16,6 +16,9 @@ exclude = ["CLAUDE.md", ".github/", "docs/"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+# Shell completion scripts, written by `seastamp completions <shell>`. It reads
+# the same clap command tree, so the scripts never drift from the CLI.
+clap_complete = "4"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 rayon = "1"

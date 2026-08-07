@@ -13,8 +13,9 @@ appends any of:
 - **nearest**: the nearest location in a second table you supply, and the
   distance to it (any two sets, for example measurements and fish farms).
 
-A sixth command, **regions**, takes no points: it lists sea and ocean bounding
-boxes, so you can find a region for the commands above.
+Two further commands take no points: **regions** lists sea and ocean bounding
+boxes, so you can find a region for the commands above, and **completions**
+prints a shell completion script.
 
 It reads and writes Parquet (default), CSV, TSV, and the gzip variants `csv.gz`
 and `tsv.gz`. Each enrichment command reduces the input to unique rounded
@@ -27,8 +28,9 @@ enrich.
 > lookup), `sea` (IHO point in polygon with a nearest fallback), `place`
 > (nearest Natural Earth country and GISCO LAU municipality), and `nearest`
 > (nearest point of a caller-supplied table by unit-sphere R-tree), plus
-> `regions` for listing bounding boxes. See `CLAUDE.md` for the algorithm and
-> caveats per module.
+> `regions` for listing bounding boxes and `completions` for shell completion.
+> See the [documentation site](https://aiqc-hub.github.io/seastamp/) for the
+> algorithm and caveats per module.
 
 ## Install
 
@@ -68,14 +70,33 @@ brew install hdf5
 To build a self-contained binary that vendors those libraries instead (as the
 release archives do), add `--features static-netcdf` (this needs `cmake`).
 
+### Shell completion
+
+`seastamp completions <shell>` prints a completion script for `bash`, `zsh`,
+`fish`, `elvish`, or `powershell`. Tab then fills in subcommands, flags, their
+enumerated values, and every name `--region` accepts.
+
+```bash
+# bash
+seastamp completions bash > ~/.local/share/bash-completion/completions/seastamp
+# zsh (with ~/.zfunc on $fpath)
+seastamp completions zsh > ~/.zfunc/_seastamp
+# fish
+seastamp completions fish > ~/.config/fish/completions/seastamp.fish
+```
+
+Start a new shell afterwards, and regenerate the script when you upgrade. See
+the [completions page](https://aiqc-hub.github.io/seastamp/commands/completions.html)
+for the details, including how to make bash list candidates on the first Tab.
+
 ## Usage
 
 ```bash
 seastamp <command> <input> [options]
 ```
 
-The five enrichment commands share these options (`regions` takes none of them,
-having no input table):
+The five enrichment commands share these options (`regions` and `completions`
+take none of them, having no input table):
 
 | Option | Default | Meaning |
 |--------|---------|---------|

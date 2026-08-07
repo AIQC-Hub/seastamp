@@ -15,12 +15,13 @@ with sea attributes, one per top-level command:
 | `place` | nearest country and municipality | Natural Earth + GISCO |
 | `nearest` | nearest location in a second table the caller supplies | none |
 | `regions` | nothing: lists sea and ocean bounding boxes | none (baked-in table) |
+| `completions` | nothing: prints a shell completion script | none |
 
 Input and output can be Parquet (default), CSV, TSV, and the gzip variants
 `csv.gz` / `tsv.gz`. Every enrichment module reads the input, reduces it to
 unique locations with rounded coordinates (3 decimals by default), enriches those
 in parallel (`depth` excepted), then joins the results back onto every input row.
-`regions` takes no input table and runs no pipeline.
+`regions` and `completions` take no input table and run no pipeline.
 
 It is a sibling to `ctddump` and follows the same house style, but is a separate
 package on purpose: it must stay light and reusable across several downstream
