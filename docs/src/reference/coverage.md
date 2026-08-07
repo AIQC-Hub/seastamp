@@ -80,13 +80,21 @@ seastamp warns when the input sits far enough from the center to matter:
 ```
 [seastamp] warning: the farthest input point is 15127 km from the projection
 center (0.0, 0.0), where planar distances are off by roughly 63%.
-[seastamp] warning: pass --region, or --proj-lon0 / --proj-lat0, centered on your data.
+[seastamp] warning: pass --region, or --proj-lon0 / --proj-lat0, centered on your
+data, or --partition to measure each area in its own projection.
 ```
 
 A large region is not free either. A box spanning a whole ocean puts its own
 edges thousands of km from its center, so the warning can fire on a region that
-is genuinely as tight as the data allows. Splitting the run into several smaller
-regions is the fix when the accuracy matters.
+is genuinely as tight as the data allows.
+
+**When the data really is spread too wide for any one center, use
+[`--partition`](./regions.md#partition-for-data-one-projection-cannot-serve).**
+It splits the run into sub-regions, each measured in its own projection, and
+keeps splitting until nothing is more than 2% out. On the 540-point global set
+above it brought `coast`'s worst error down from 14.0% to 1.4%, and stopped
+`place` assigning the wrong country to 91 of those 540 points. It is available on
+`coast`, `sea`, and `place`; `depth` and `nearest` have no projection to fix.
 
 ## The antimeridian: distances now work, cropping still does not
 

@@ -20,6 +20,11 @@ dropped, never clipped, so cropping cannot invent artificial shoreline; a point
 whose true nearest coast lies beyond the region-plus-margin box gets an
 over-estimate, so widen the [region](../reference/regions.md) for such cases.
 
+Because the distance is planar, it is accurate near the projection center and
+degrades away from it. For points spread too widely for any one center, pass
+[`--partition`](../reference/regions.md#partition-for-data-one-projection-cannot-serve)
+and each area is measured in its own projection.
+
 ## Options
 
 Beyond the [shared options](../reference/configuration.md) and the

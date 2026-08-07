@@ -20,6 +20,12 @@ inland (for example inside a fjord not covered by a sea polygon).
 `--name-field` selects which feature property holds the name (default `NAME`);
 the command errors clearly if that field is absent.
 
+Containment is an exact lon/lat test, so no projection is involved and most
+results are unaffected by which region you pick. Only the nearest-boundary
+fallback is planar. For points spread too widely for one projection center, pass
+[`--partition`](../reference/regions.md#partition-for-data-one-projection-cannot-serve),
+which also crops the polygons per area rather than keeping one global set.
+
 ## Options
 
 Beyond the [shared options](../reference/configuration.md) and the

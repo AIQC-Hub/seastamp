@@ -23,7 +23,7 @@ use crate::cli::SeaArgs;
 use crate::config::{resolve, BBox, Settings};
 use crate::geo::vector::{PolygonIndex, Rings, CROP_MARGIN_DEG};
 use crate::geo::Laea;
-use crate::pipeline::{run_module, Enricher, OutputKind, OutputSpec, Value};
+use crate::pipeline::{run_module, run_partitioned, Enricher, OutputKind, OutputSpec, Value};
 
 pub struct SeaEnricher {
     index: PolygonIndex<String>,
@@ -44,6 +44,46 @@ impl SeaEnricher {
             index: PolygonIndex::build(feats, region, CROP_MARGIN_DEG, proj),
             column,
         }
+    }
+
+    /// Wrap an index built elsewhere, which is how the `--partition` path and
+    /// its tests get one per partition out of [`PolygonIndex::build_many`].
+    pub fn from_index(index: PolygonIndex<String>, column: String) -> Self {
+        SeaEnricher { index, column }
+    }
+
+    /// Build one enricher per `(crop box, projection)` from a single read of the
+    /// data file, for `--partition`. See [`PolygonIndex::build_many`] for why the
+    /// read is shared and the geometry is not.
+    pub fn open_many(
+        data: &Path,
+        name_field: &str,
+        regions: &[(BBox, Laea)],
+        column: &str,
+    ) -> Result<Vec<Self>, Box<dyn Error>> {
+        let feats = read_features(data, name_field)?;
+        let built: Vec<Self> = PolygonIndex::build_many(&feats, regions, CROP_MARGIN_DEG)
+            .into_iter()
+            .map(|index| Self::from_index(index, column.to_string()))
+            .collect();
+
+        // One line for the run, not one per partition: with dozens of them the
+        // per-partition version would bury everything else. Only a partition
+        // that kept nothing is worth mentioning, and only in aggregate.
+        let empty = built.iter().filter(|e| e.index.is_empty()).count();
+        if empty == built.len() {
+            eprintln!(
+                "[seastamp] warning: no sea polygons overlap any partition, so every row will be \
+                 empty. Check --data against your points."
+            );
+        } else if empty > 0 {
+            eprintln!(
+                "[seastamp] warning: {empty} of {} partitions matched no sea polygon; rows in \
+                 those areas will be empty.",
+                built.len()
+            );
+        }
+        Ok(built)
     }
 
     /// Open an IHO Sea Areas file (GeoJSON `.geojson` / `.json`, or a
@@ -195,6 +235,27 @@ pub fn run(args: SeaArgs) -> Result<(), Box<dyn Error>> {
         .output
         .clone()
         .unwrap_or_else(|| super::default_output(&args.common.input, "sea", args.common.in_format));
+
+    // --partition derives a region per piece of the input, so there is no single
+    // region to settle and `apply_auto_region` has nothing to say. The pipeline
+    // splits the locations and calls back here once per batch of partitions,
+    // each call reading the data file once for the whole batch.
+    if s.partition {
+        let name_field = args.name_field.clone();
+        let column = args.column.clone();
+        let build = move |regions: &[(BBox, Laea)]| {
+            let built = SeaEnricher::open_many(&data, &name_field, regions, &column)?;
+            Ok(built
+                .into_iter()
+                .map(|e| Box::new(e) as Box<dyn Enricher>)
+                .collect())
+        };
+        let outputs = [OutputSpec {
+            name: args.column.clone(),
+            kind: OutputKind::Text,
+        }];
+        return run_partitioned(&build, &outputs, df, &s, &out_path, args.common.out_format);
+    }
 
     // --region auto needs the points, so the region settles here, after the
     // table is read and before any reference data is cropped to it.

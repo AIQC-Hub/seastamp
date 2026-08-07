@@ -180,6 +180,20 @@ pub struct RegionArgs {
     #[arg(long, value_parser = RegionNameParser, hide_possible_values = true)]
     pub region: Option<String>,
 
+    /// Split the input into sub-regions and measure each in its own projection,
+    /// for data spread too widely for any single one. The split is driven by
+    /// accuracy, not by a cell size: seastamp keeps halving until every distance
+    /// is within 2% of true, so data that already fits one projection is left as
+    /// one piece. Derives everything from the points, so it takes no region or
+    /// bounds of its own
+    #[arg(
+        long,
+        conflicts_with_all = [
+            "region", "min_lon", "max_lon", "min_lat", "max_lat", "proj_lon0", "proj_lat0",
+        ]
+    )]
+    pub partition: bool,
+
     /// Western bound of the reference-data crop box
     #[arg(long, allow_hyphen_values = true)]
     pub min_lon: Option<f64>,

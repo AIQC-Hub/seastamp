@@ -31,10 +31,14 @@ When the data wraps, auto keeps a correct center and widens the crop to every
 longitude, which is why it works across the dateline where a box cannot.
 
 Auto also reports the resultant length as a spread measure and warns below 0.5
-that no single projection can serve the input. That is the case partitioning
-would eventually address, and it is deliberately left unsolved: measured, an
-IHO-area-based partition is 2.5 to 6.7% out for the six ocean-sized areas, so it
-would fail exactly where the old global default failed.
+that no single projection can serve the input. **That case is now `--partition`**
+(see below), and both warnings point at it.
+
+The earlier measurement that ruled out a *fixed* partition still stands and is
+why `--partition` does not use one: an IHO-area-based split came out 2.5 to 6.7%
+out for the six ocean-sized areas, failing exactly where the old global default
+failed, because those areas are as large as the globe was. Do not replace the
+data-driven split with named cells.
 
 The box is the data extent padded by `config::AUTO_PAD_DEG` (5 degrees), on top
 of which each module adds its own `CROP_MARGIN_DEG`. The total, about 10 degrees,
@@ -69,6 +73,64 @@ will be lost.
 Note that an IHO area is not the colloquial sea: S-23 splits the Gulfs of
 Bothnia, Finland, and Riga out of the Baltic, so the IHO `Baltic Sea` box is much
 smaller than the `baltic` preset. Do not "correct" a preset to match one IHO box.
+
+## --partition
+
+`--partition` replaces the single region with one per piece of the input:
+`geo::partition::partition` splits the unique locations, `pipeline::
+run_partitioned` drives them, and each piece gets its own crop box and LAEA
+center. `apply_auto_region` is not called at all on that path, which is why the
+flag `conflicts_with_all` every region argument in `cli::RegionArgs`: there is no
+single box or center for them to override.
+
+**The split criterion is the warning threshold.** `projection::DISTORTION_LIMIT`
+(2%) is both what `pipeline::warn_if_far_from_center` warns above and what the
+partitioner splits below, so a partitioned run can never trip the warning it
+exists to answer. Keep them the same constant.
+
+Bisection is by farthest pair, deterministic on purpose: the output is a data
+product, so k-means with a seed was rejected. Bisection alone overshoots badly
+(it splits the moment one point falls outside, so a 25 degree cluster becomes two
+of 15), which measured 88 partitions on a global grid; `coalesce` merges back any
+pair whose union still fits, bringing that to 64. Do not remove it without
+re-measuring.
+
+Partitioning runs on the **unique rounded** locations, not the input rows, unlike
+`apply_auto_region`. The accuracy bound is unaffected, since every row's location
+is some unique location, and only the center's placement within the tolerance
+differs. That is the justification for the inconsistency; it is not an oversight.
+
+Partition crops overlap (each is padded like `auto`'s, about 10 degrees), so
+building them all at once holds several copies of the reference data: a global
+input measured 4.35 globes of crop across 64 partitions. `pipeline::batches`
+therefore groups partitions to `CROP_BUDGET_GLOBES` and the module builds one
+batch per pass. That is what `CoastEnricher::open_many` is for: **one** shapefile
+read fanned out to every crop in the batch. A module that builds per partition
+instead multiplies the dominant cost by the partition count, which for `coast` is
+the 154 MB GSHHG parse.
+
+`coast` streams its shapefile and crops as it goes, so `open_many` fans each
+segment out to every crop in the batch. `sea` and `place` instead parse whole
+polygon sets into memory first, so theirs goes through
+`PolygonIndex::build_many`, which crops the shared feature slice once per region
+and clones only what each keeps. Feature bounding boxes are computed once there
+rather than per region: a box costs a pass over every vertex, and with dozens of
+partitions that would dominate.
+
+Measured on 540 globally spread points. `coast` on GSHHG `f`: `--region global`
+6.0 s and 0.95 GB at 8.2% mean error, `--partition` 21 s and 1.4 GB at 0.6% mean
+error over 52 partitions in 3 passes. `place` on Natural Earth: 0.5 s and 0.09 GB
+against 3.0 s and 0.36 GB, and the two runs named a different nearest country for
+91 of the 540 points, `--partition` being the right one on every spot check.
+
+The per-partition "nothing overlapped this region" warnings are aggregated into
+one line (`N of M partitions matched no ...`). Do not restore the per-partition
+version: at 52 partitions it buries everything else in the log.
+
+`place` decides its output column set in `run` rather than reading it off a built
+enricher, because `run_partitioned` needs the columns before any enricher exists.
+It turns only on whether `--municipalities` was given, so the two must be kept in
+step with `PlaceEnricher::outputs`.
 
 ## Longitude extents are arcs, not intervals
 

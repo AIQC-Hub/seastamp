@@ -5,6 +5,7 @@
 //! modules.
 
 pub mod arc;
+pub mod partition;
 pub mod projection;
 pub mod vector;
 

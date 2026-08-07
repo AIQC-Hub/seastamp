@@ -4,6 +4,51 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `--partition` on `coast`, `sea`, and `place`, for point sets spread too widely
+  for any single map projection to measure accurately. It splits the input into
+  sub-regions, gives each its own crop box and projection center, and joins the
+  results back onto every input row, which is what the `--region auto` warning
+  used to tell you to do by hand.
+
+  The split is driven by the accuracy bound, not by a cell size or a partition
+  count, so there is nothing to tune: seastamp keeps halving a group while any of
+  its points would be more than 2% out and stops as soon as none are. Every run
+  reports the worst distortion it settled for, which is an upper bound on how far
+  any distance in the output is from what a projection centered on that point
+  would have given. A fixed scheme cannot make that promise: an earlier
+  measurement had an IHO-area-based split 2.5 to 6.7% out for the ocean-sized
+  areas.
+
+  Measured with 540 points spread over the globe, against each point run on its
+  own. For `coast` on GSHHG `f`, `--region global` was 8.2% out on average and
+  14.0% at worst, `--partition` 0.6% and 1.4%; it cost 21 s and 1.4 GB against
+  6.0 s and 0.95 GB, the reference shoreline being read three times to stay
+  within a memory budget rather than once. For `place` on Natural Earth the
+  effect is categorical rather than numerical: the two runs named a different
+  nearest country for 91 of the 540 points, and on a sample of 20 of those,
+  `--partition` agreed with the per-point run 20 times and `--region global`
+  none. `sea` gains least, its containment test being an exact lon/lat one that
+  no projection touches; only its nearest-boundary fallback changes.
+
+  Data that already suits one projection is left as a single partition and comes
+  out identical to an ordinary run. Partitioning is deterministic: the same table
+  always yields the same partitions, and two runs produce byte-identical output.
+
+  `--partition` derives every box and center from the points, so it cannot be
+  combined with `--region`, `--min-lon` and friends, or `--proj-lon0/--proj-lat0`;
+  clap rejects the combination rather than picking a winner. `depth` and
+  `nearest` use no projection and do not take the flag at all.
+
+### Changed
+
+- The warnings about points spread too far for one projection now point at
+  `--partition` instead of telling you to split the run and concatenate the
+  results yourself.
+
 ## [0.13.0] - 2026-08-07
 
 ### Added

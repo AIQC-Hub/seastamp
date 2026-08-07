@@ -127,6 +127,21 @@ are also explicit `--min-lon/--max-lon/--min-lat/--max-lat` and
 > work anywhere. Municipalities are Europe only (GISCO LAU). See
 > [Coverage and limits](https://aiqc-hub.github.io/seastamp/reference/coverage.html).
 
+For data spread too widely for any one projection, `--partition` splits it into
+sub-regions and measures each in its own, then joins the results back together.
+The split is driven by accuracy rather than a cell size: seastamp keeps splitting
+until nothing is more than 2% out and reports what it achieved, so data that
+already fits one projection is left as one piece. It works on `coast`, `sea`, and
+`place`.
+
+```bash
+# 540 points over the whole globe: coast's mean error goes from 8.2% to 0.6%
+seastamp coast global-stations.parquet --data ./data/gshhg/... --partition
+
+# and place stops assigning the wrong country to points in the open Pacific
+seastamp place global-stations.parquet --countries ./data/naturalearth/... --partition
+```
+
 `seastamp regions` lists every name `--region` accepts, and with `--data`
 re-derives the boxes from an IHO Sea Areas file:
 

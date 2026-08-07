@@ -30,7 +30,7 @@ use crate::cli::{CoastArgs, DistUnit};
 use crate::config::{resolve, BBox, Settings};
 use crate::geo::vector::{expand, point_seg_dist2, CROP_MARGIN_DEG};
 use crate::geo::Laea;
-use crate::pipeline::{run_module, Enricher, OutputKind, OutputSpec, Value};
+use crate::pipeline::{run_module, run_partitioned, Enricher, OutputKind, OutputSpec, Value};
 
 /// One shoreline segment in projected (LAEA) meters.
 struct Segment {
@@ -129,37 +129,68 @@ impl CoastEnricher {
         unit: DistUnit,
         column: String,
     ) -> Result<Self, Box<dyn Error>> {
+        let mut built = Self::open_many(data, &[(region, proj)], unit, &column)?;
+        Ok(built.remove(0))
+    }
+
+    /// Build one enricher per `(crop box, projection)` from a single pass over
+    /// the shapefile, for `--partition`.
+    ///
+    /// The pass is shared on purpose. Parsing the 154 MB `f` shoreline dominates
+    /// a `coast` run, so building each partition separately would multiply the
+    /// dominant cost by the partition count. Here every segment is tested
+    /// against every crop as it streams past and pushed, already projected, into
+    /// whichever partitions want it. A segment near a partition boundary lands
+    /// in both, which is what keeps each partition's coastline complete: the
+    /// crops overlap by design, and `--partition` batches its calls here so the
+    /// duplication stays within a memory budget.
+    pub fn open_many(
+        data: &Path,
+        regions: &[(BBox, Laea)],
+        unit: DistUnit,
+        column: &str,
+    ) -> Result<Vec<Self>, Box<dyn Error>> {
         let shp = resolve_shapefile(data)?;
         let mut reader = shapefile::Reader::from_path(&shp)
             .map_err(|e| format!("cannot read shapefile {}: {e}", shp.display()))?;
 
-        let crop = expand(&region, CROP_MARGIN_DEG);
-        let mut segs = Vec::new();
+        let crops: Vec<BBox> = regions
+            .iter()
+            .map(|(r, _)| expand(r, CROP_MARGIN_DEG))
+            .collect();
+        let mut segs: Vec<Vec<Segment>> = regions.iter().map(|_| Vec::new()).collect();
         for item in reader.iter_shapes_and_records() {
-            let (shape, _record) =
-                item.map_err(|e| format!("reading {}: {e}", shp.display()))?;
+            let (shape, _record) = item.map_err(|e| format!("reading {}: {e}", shp.display()))?;
             if let shapefile::Shape::Polygon(poly) = shape {
                 for ring in poly.rings() {
-                    let pts = ring.points();
-                    for w in pts.windows(2) {
-                        add_segment(&mut segs, w[0].x, w[0].y, w[1].x, w[1].y, &crop, &proj);
+                    for w in ring.points().windows(2) {
+                        for (i, crop) in crops.iter().enumerate() {
+                            let proj = &regions[i].1;
+                            add_segment(
+                                &mut segs[i], w[0].x, w[0].y, w[1].x, w[1].y, crop, proj,
+                            );
+                        }
                     }
                 }
             }
         }
 
-        if segs.is_empty() {
+        if segs.iter().any(|s| s.is_empty()) {
             eprintln!(
                 "[seastamp] warning: no shoreline segments overlap the region, so every distance \
                  will be null. Check --region against your data."
             );
         }
-        Ok(CoastEnricher {
-            tree: RTree::bulk_load(segs),
-            proj,
-            to_km: matches!(unit, DistUnit::Km),
-            column,
-        })
+        Ok(segs
+            .into_iter()
+            .zip(regions)
+            .map(|(s, &(_, proj))| CoastEnricher {
+                tree: RTree::bulk_load(s),
+                proj,
+                to_km: matches!(unit, DistUnit::Km),
+                column: column.to_string(),
+            })
+            .collect())
     }
 }
 
@@ -230,6 +261,27 @@ pub fn run(args: CoastArgs) -> Result<(), Box<dyn Error>> {
         .output
         .clone()
         .unwrap_or_else(|| super::default_output(&args.common.input, "coast", args.common.in_format));
+
+    // --partition derives a region per piece of the input, so there is no single
+    // region to settle and `apply_auto_region` has nothing to say. The pipeline
+    // splits the locations and calls back here once per batch of partitions,
+    // each call reading the shapefile once for the whole batch.
+    if s.partition {
+        let unit = args.unit;
+        let column = args.column.clone();
+        let build = move |regions: &[(BBox, Laea)]| {
+            let built = CoastEnricher::open_many(&data, regions, unit, &column)?;
+            Ok(built
+                .into_iter()
+                .map(|e| Box::new(e) as Box<dyn Enricher>)
+                .collect())
+        };
+        let outputs = [OutputSpec {
+            name: args.column.clone(),
+            kind: OutputKind::Float,
+        }];
+        return run_partitioned(&build, &outputs, df, &s, &out_path, args.common.out_format);
+    }
 
     // --region auto needs the points, so the region settles here, after the
     // table is read and before any reference data is cropped to it.
