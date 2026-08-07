@@ -109,9 +109,56 @@ pub fn haversine_m(lon1: f64, lat1: f64, lon2: f64, lat2: f64) -> f64 {
     2.0 * MEAN_RADIUS_M * a.sqrt().asin()
 }
 
+/// The relative error a planar LAEA measurement picks up at angular distance
+/// `angle_rad` from its center.
+///
+/// For an azimuthal equal-area projection the radial scale at angular distance
+/// `c` is `1/k'` with `k' = sqrt(2 / (1 + cos c))`, so a length measured
+/// radially comes out scaled by `sqrt((1 + cos c) / 2)`. Returned as a signed
+/// fraction: negative means the projection understates the true distance.
+pub fn laea_radial_error(angle_rad: f64) -> f64 {
+    ((1.0 + angle_rad.cos()) / 2.0).sqrt() - 1.0
+}
+
+/// The same, from a great-circle distance in meters.
+pub fn laea_error_at(dist_m: f64) -> f64 {
+    laea_radial_error(dist_m / MEAN_RADIUS_M)
+}
+
+/// The inverse: how far from its center, in meters, a LAEA projection stays
+/// within `tolerance`. This is the radius one projection can serve at a given
+/// accuracy, which is what `--partition` sizes its pieces against.
+///
+/// From `sqrt((1 + cos c) / 2) = 1 - tolerance`, so
+/// `cos c = 2 (1 - tolerance)^2 - 1`.
+pub fn laea_radius_m(tolerance: f64) -> f64 {
+    let cos_c = (2.0 * (1.0 - tolerance).powi(2) - 1.0).clamp(-1.0, 1.0);
+    MEAN_RADIUS_M * cos_c.acos()
+}
+
+/// The planar-distance error at which seastamp stops being quiet, as a
+/// fraction: about 23 degrees, or 2500 km, from the projection center.
+///
+/// One number serves two purposes on purpose. [`crate::pipeline::run_module`]
+/// warns when the input exceeds it, and `--partition` splits until no partition
+/// does, so the tool can never warn about a distortion the partitioner would
+/// have accepted.
+pub const DISTORTION_LIMIT: f64 = 0.02;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The limit has to name a believable distance, since the docs quote one.
+    #[test]
+    fn the_distortion_limit_is_about_23_degrees() {
+        let at = |deg: f64| laea_radial_error(deg.to_radians()).abs();
+        assert!(at(22.0) < DISTORTION_LIMIT, "22 deg: {}", at(22.0));
+        assert!(at(24.0) > DISTORTION_LIMIT, "24 deg: {}", at(24.0));
+        // and it understates, never overstates
+        assert!(laea_radial_error(0.4) < 0.0);
+        assert_eq!(laea_radial_error(0.0), 0.0);
+    }
 
     #[test]
     fn center_maps_to_origin() {

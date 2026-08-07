@@ -68,6 +68,10 @@ pub struct Settings {
     /// derived box. `None` once the region is settled, and for modules that
     /// have no region at all.
     pub auto: Option<RegionOverrides>,
+    /// `--partition`: derive a region per sub-region of the input rather than
+    /// one for all of it. The single `bbox` and projection center above are then
+    /// unused, which is why the flag conflicts with every way of setting them.
+    pub partition: bool,
 }
 
 /// The region fields the caller set explicitly, kept so `auto` can derive the
@@ -284,6 +288,7 @@ pub fn resolve(common: &CommonArgs, region: Option<&RegionArgs>) -> Result<Setti
         proj_lon0: overrides.proj_lon0.unwrap_or(clon),
         proj_lat0: overrides.proj_lat0.unwrap_or(clat),
         auto: auto.then_some(overrides),
+        partition: region.is_some_and(|r| r.partition),
     })
 }
 
@@ -299,6 +304,30 @@ pub const AUTO_PAD_DEG: f64 = 5.0;
 /// points are spread so widely that no single projection center serves them,
 /// and `auto` says so rather than pretending otherwise.
 const NO_CENTER_RESULTANT: f64 = 0.5;
+
+/// The crop box a point set earns for itself: its own extent padded by
+/// [`AUTO_PAD_DEG`] and clamped to the globe. The `bool` is true when the set
+/// spans the antimeridian, in which case every longitude is kept, because a
+/// rectangle cannot say "170 E to 170 W". Only cropping widens; nothing here
+/// touches the projection center, which has no seam.
+///
+/// Shared by `--region auto`, which calls it once for the whole input, and
+/// `--partition`, which calls it once per partition.
+pub fn auto_bbox(pts: &[(f64, f64)]) -> Option<(BBox, bool)> {
+    let (west, east, crosses) = crate::geo::arc::points_arc(pts.iter().map(|&(lo, _)| lo))?;
+    let (mut min_lat, mut max_lat) = (f64::INFINITY, f64::NEG_INFINITY);
+    for &(_, la) in pts {
+        min_lat = min_lat.min(la);
+        max_lat = max_lat.max(la);
+    }
+    let bbox = BBox {
+        min_lon: if crosses { -180.0 } else { (west - AUTO_PAD_DEG).max(-180.0) },
+        max_lon: if crosses { 180.0 } else { (east + AUTO_PAD_DEG).min(180.0) },
+        min_lat: (min_lat - AUTO_PAD_DEG).max(-90.0),
+        max_lat: (max_lat + AUTO_PAD_DEG).min(90.0),
+    };
+    Some((bbox, crosses))
+}
 
 /// Derive the region from the input points, for `--region auto`. A no-op when
 /// the region was named or given as an explicit box.
@@ -330,40 +359,27 @@ pub fn apply_auto_region(s: &mut Settings, pts: &[(f64, f64)]) -> Result<(), Box
     // A `None` center means the points cancel exactly, which only a set spread
     // right around the globe can do. There is no direction to center on, so say
     // so and leave the global default rather than inventing one.
-    let (Some((clon, clat, resultant)), Some((west, east, crosses))) = (
+    let (Some((clon, clat, resultant)), Some((bbox, crosses))) = (
         crate::geo::arc::spherical_center(&finite),
-        crate::geo::arc::points_arc(finite.iter().map(|&(lo, _)| lo)),
+        auto_bbox(&finite),
     ) else {
         eprintln!(
             "[seastamp] warning: the points are spread right around the globe, so they have no \
              mean direction and --region auto cannot center on them."
         );
         eprintln!(
-            "[seastamp] warning: falling back to the whole globe centered on (0, 0). Split the \
-             run by area and concatenate the results if the distances matter."
+            "[seastamp] warning: falling back to the whole globe centered on (0, 0). Pass \
+             --partition if the distances matter."
         );
         return Ok(());
     };
 
-    let (mut min_lat, mut max_lat) = (f64::INFINITY, f64::NEG_INFINITY);
-    for &(_, la) in &finite {
-        min_lat = min_lat.min(la);
-        max_lat = max_lat.max(la);
-    }
-
-    let mut bbox = BBox {
-        min_lon: (west - AUTO_PAD_DEG).max(-180.0),
-        max_lon: (east + AUTO_PAD_DEG).min(180.0),
-        min_lat: (min_lat - AUTO_PAD_DEG).max(-90.0),
-        max_lat: (max_lat + AUTO_PAD_DEG).min(90.0),
-    };
     let spread_too_wide = resultant < NO_CENTER_RESULTANT;
     if crosses {
-        // A rectangle cannot express the short way round, so keep every
-        // longitude and let the latitude band do the cropping. The projection
-        // center below is unaffected, which is the part that matters.
-        bbox.min_lon = -180.0;
-        bbox.max_lon = 180.0;
+        // `auto_bbox` has already kept every longitude: a rectangle cannot
+        // express the short way round. The projection center is unaffected,
+        // which is the part that matters.
+        //
         // Not worth saying when the points are spread so far that the warning
         // below is the real story.
         if !spread_too_wide {
@@ -398,8 +414,8 @@ pub fn apply_auto_region(s: &mut Settings, pts: &[(f64, f64)]) -> Result<(), Box
             resultant
         );
         eprintln!(
-            "[seastamp] warning: --region auto cannot help here. Split the run by area and \
-             concatenate the results, or accept the distance error."
+            "[seastamp] warning: --region auto cannot help here. Pass --partition to measure \
+             each area in its own projection."
         );
     }
     Ok(())
@@ -478,6 +494,7 @@ mod tests {
             proj_lon0: 0.0,
             proj_lat0: 0.0,
             auto: Some(RegionOverrides::default()),
+            partition: false,
         }
     }
 

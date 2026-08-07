@@ -49,6 +49,7 @@ fn settings() -> Settings {
         proj_lon0: 19.5,
         proj_lat0: 59.5,
         auto: None,
+        partition: false,
     }
 }
 

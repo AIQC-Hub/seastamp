@@ -32,7 +32,7 @@ use crate::cli::{DistUnit, PlaceArgs};
 use crate::config::{resolve, BBox, Settings};
 use crate::geo::vector::{PolygonIndex, Rings, CROP_MARGIN_DEG};
 use crate::geo::Laea;
-use crate::pipeline::{run_module, Enricher, OutputKind, OutputSpec, Value};
+use crate::pipeline::{run_module, run_partitioned, Enricher, OutputKind, OutputSpec, Value};
 
 /// Candidate DBF fields for the country name, tried in order per record.
 const COUNTRY_NAME_FIELDS: &[&str] = &["NAME", "ADMIN", "NAME_EN", "NAME_LONG"];
@@ -87,16 +87,82 @@ impl PlaceEnricher {
         }
     }
 
-    /// Open the Natural Earth countries shapefile and, when given, the GISCO
-    /// LAU municipalities shapefile, cropped to `region`.
-    pub fn open(
-        countries: &Path,
-        municipalities: Option<&Path>,
-        region: BBox,
-        proj: Laea,
+    /// Wrap indexes built elsewhere, which is how the `--partition` path and its
+    /// tests get one enricher per partition out of [`PolygonIndex::build_many`].
+    pub fn from_indexes(
+        countries: PolygonIndex<(String, Option<String>)>,
+        municipalities: Option<PolygonIndex<String>>,
         dist_divisor: f64,
         max_municipality_dist_m: Option<f64>,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> Self {
+        PlaceEnricher {
+            countries,
+            municipalities,
+            dist_divisor,
+            max_municipality_dist_m,
+        }
+    }
+
+    /// Build one enricher per `(crop box, projection)` from a single read of
+    /// each shapefile, for `--partition`. See [`PolygonIndex::build_many`] for
+    /// why the read is shared and the geometry is not.
+    pub fn open_many(
+        countries: &Path,
+        municipalities: Option<&Path>,
+        regions: &[(BBox, Laea)],
+        dist_divisor: f64,
+        max_municipality_dist_m: Option<f64>,
+    ) -> Result<Vec<Self>, Box<dyn Error>> {
+        let (cfeats, mfeats) = Self::read_features(countries, municipalities)?;
+
+        let cidx = PolygonIndex::build_many(&cfeats, regions, CROP_MARGIN_DEG);
+        let midx = mfeats.map(|m| PolygonIndex::build_many(&m, regions, CROP_MARGIN_DEG));
+        let built: Vec<Self> = match midx {
+            Some(midx) => cidx
+                .into_iter()
+                .zip(midx)
+                .map(|(c, m)| Self::from_indexes(c, Some(m), dist_divisor, max_municipality_dist_m))
+                .collect(),
+            None => cidx
+                .into_iter()
+                .map(|c| Self::from_indexes(c, None, dist_divisor, max_municipality_dist_m))
+                .collect(),
+        };
+
+        // One line for the run, not one per partition: with dozens of them the
+        // per-partition version would bury everything else.
+        let no_country = built.iter().filter(|e| e.countries.is_empty()).count();
+        if no_country > 0 {
+            eprintln!(
+                "[seastamp] warning: {no_country} partition(s) matched no country polygon, so \
+                 country is empty for points there."
+            );
+        }
+        let no_lau = built
+            .iter()
+            .filter(|e| e.municipalities.as_ref().is_some_and(|m| m.is_empty()))
+            .count();
+        if no_lau > 0 {
+            eprintln!(
+                "[seastamp] warning: {no_lau} partition(s) matched no municipality polygon. GISCO \
+                 LAU covers Europe only, so this is expected outside it."
+            );
+        }
+        Ok(built)
+    }
+
+    /// Read both shapefiles into memory, with their attributes resolved.
+    #[allow(clippy::type_complexity)]
+    fn read_features(
+        countries: &Path,
+        municipalities: Option<&Path>,
+    ) -> Result<
+        (
+            Vec<(Rings, (String, Option<String>))>,
+            Option<Vec<(Rings, String)>>,
+        ),
+        Box<dyn Error>,
+    > {
         let mut cfeats = Vec::new();
         for (rings, record) in super::shp_polygons(countries)? {
             let Some(name) = field_string(&record, COUNTRY_NAME_FIELDS) else {
@@ -127,7 +193,20 @@ impl PlaceEnricher {
             }
             None => None,
         };
+        Ok((cfeats, municipalities))
+    }
 
+    /// Open the Natural Earth countries shapefile and, when given, the GISCO
+    /// LAU municipalities shapefile, cropped to `region`.
+    pub fn open(
+        countries: &Path,
+        municipalities: Option<&Path>,
+        region: BBox,
+        proj: Laea,
+        dist_divisor: f64,
+        max_municipality_dist_m: Option<f64>,
+    ) -> Result<Self, Box<dyn Error>> {
+        let (cfeats, municipalities) = Self::read_features(countries, municipalities)?;
         let enr = Self::from_features(
             cfeats,
             municipalities,
@@ -229,18 +308,52 @@ pub fn run(args: PlaceArgs) -> Result<(), Box<dyn Error>> {
         .clone()
         .unwrap_or_else(|| super::default_output(&args.common.input, "place", args.common.in_format));
 
-    // --region auto needs the points, so the region settles here, after the
-    // table is read and before any reference data is cropped to it.
-    let pts = crate::pipeline::locations(&df, &s)?;
-    crate::config::apply_auto_region(&mut s, &pts)?;
-
-    let proj = Laea::new(s.proj_lon0, s.proj_lat0);
     // The cutoff is given in the output unit; the index measures in meters.
     let divisor = match args.unit {
         DistUnit::Km => 1000.0,
         DistUnit::M => 1.0,
     };
     let max_m = args.max_municipality_dist.map(|d| d * divisor);
+
+    // --partition derives a region per piece of the input, so there is no single
+    // region to settle and `apply_auto_region` has nothing to say. The pipeline
+    // splits the locations and calls back here once per batch of partitions,
+    // each call reading both shapefiles once for the whole batch.
+    if s.partition {
+        let municipalities = args.municipalities.clone();
+        let build = move |regions: &[(BBox, Laea)]| {
+            let built = PlaceEnricher::open_many(
+                &countries,
+                municipalities.as_deref(),
+                regions,
+                divisor,
+                max_m,
+            )?;
+            Ok(built
+                .into_iter()
+                .map(|e| Box::new(e) as Box<dyn Enricher>)
+                .collect())
+        };
+        // The column set must be known before any enricher exists, and it turns
+        // only on whether a municipality set was given, so it is decided here
+        // rather than read off a built enricher.
+        let mut outputs = Vec::from([
+            OutputSpec { name: "country".into(), kind: OutputKind::Text },
+            OutputSpec { name: "country_code".into(), kind: OutputKind::Text },
+            OutputSpec { name: "municipality".into(), kind: OutputKind::Text },
+        ]);
+        if args.municipalities.is_some() {
+            outputs.push(OutputSpec { name: "municipality_dist".into(), kind: OutputKind::Float });
+        }
+        return run_partitioned(&build, &outputs, df, &s, &out_path, args.common.out_format);
+    }
+
+    // --region auto needs the points, so the region settles here, after the
+    // table is read and before any reference data is cropped to it.
+    let pts = crate::pipeline::locations(&df, &s)?;
+    crate::config::apply_auto_region(&mut s, &pts)?;
+
+    let proj = Laea::new(s.proj_lon0, s.proj_lat0);
     let enr = PlaceEnricher::open(
         &countries,
         args.municipalities.as_deref(),

@@ -42,6 +42,14 @@ without the other. Both are read in `--unit`, kilometres by default.
 
 `country` needs none of this, since Natural Earth is global.
 
+Both lookups fall back to the nearest boundary in a plane, and
+`municipality_dist` is measured there too, so a projection that does not suit
+your points can return the wrong place entirely rather than a slightly wrong
+number. On 540 globally spread points, a single projection assigned a different
+nearest country to 91 of them than
+[`--partition`](../reference/regions.md#partition-for-data-one-projection-cannot-serve)
+did, and spot checks went to `--partition` every time.
+
 ## Options
 
 Beyond the [shared options](../reference/configuration.md) and the

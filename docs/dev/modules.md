@@ -26,18 +26,25 @@ projected through the region LAEA, indexed in an `rstar` R-tree; nearest-segment
 planar distance in km or m. Segments are dropped, never clipped, so cropping
 cannot create artificial shoreline.
 
+`open` is `open_many` with a one-element slice, so there is a single crop-and-
+project path. `open_many` exists for `--partition` and streams the shapefile
+once, testing each segment against every crop in the batch; see
+[regions.md](./regions.md) for why that matters.
+
 ## sea (`src/modules/sea.rs`)
 
 IHO Sea Areas from GeoJSON or shapefile, features cropped whole, even-odd point
 in polygon over R-tree bbox candidates with a nearest-boundary fallback for
-points just inland.
+points just inland. `open_many` serves `--partition` by reading the file once and
+handing the features to `PolygonIndex::build_many`.
 
 ## place (`src/modules/place.rs`)
 
 Natural Earth countries plus optional GISCO LAU municipalities, both resolved
 containment-first with a nearest-boundary fallback; DBF attribute fields
 auto-detected from candidate lists (the Natural Earth `-99` code placeholder
-reads as missing).
+reads as missing). `read_features` parses both shapefiles and is shared by `open`
+and by `open_many`, the `--partition` path.
 
 With `--municipalities` it also appends `municipality_dist` (0 for a containment,
 else the boundary distance via `PolygonIndex::locate_with_dist`), and

@@ -41,6 +41,22 @@ pub fn expand(b: &BBox, m: f64) -> BBox {
     }
 }
 
+/// The fraction of the globe's surface a region's crop covers, once grown by
+/// [`CROP_MARGIN_DEG`] and clipped to the poles.
+///
+/// A proxy for how much reference data the crop will hold, which is what
+/// `--partition` budgets its batches against. Area, not degrees: a box at 70 N
+/// spans far less surface than the same box at the equator, and counting
+/// degrees would batch polar partitions far too cautiously.
+pub fn crop_fraction(b: &BBox) -> f64 {
+    let c = expand(b, CROP_MARGIN_DEG);
+    let lo = c.min_lat.max(-90.0).to_radians();
+    let hi = c.max_lat.min(90.0).to_radians();
+    let dlon = (c.max_lon.min(180.0) - c.min_lon.max(-180.0)).max(0.0).to_radians();
+    // sphere surface is 4 pi steradians; a lon/lat box is dlon * (sin hi - sin lo)
+    (dlon * (hi.sin() - lo.sin()).max(0.0)) / (4.0 * std::f64::consts::PI)
+}
+
 /// One boundary segment in projected (LAEA) meters, tagged with the index of
 /// the feature it belongs to.
 pub struct TaggedSegment {
@@ -107,6 +123,15 @@ fn rings_bbox(rings: &Rings) -> Option<BBox> {
     b
 }
 
+/// Whether a feature's lon/lat bounding box meets a crop box at all. Features
+/// are kept whole or dropped whole, never clipped.
+fn overlaps(b: &BBox, crop: &BBox) -> bool {
+    b.max_lon >= crop.min_lon
+        && b.min_lon <= crop.max_lon
+        && b.max_lat >= crop.min_lat
+        && b.min_lat <= crop.max_lat
+}
+
 /// A kept feature's lon/lat bounding box in the candidate R-tree.
 struct PolyBBox {
     aabb: AABB<[f64; 2]>,
@@ -142,17 +167,46 @@ impl<A> PolygonIndex<A> {
         let crop = expand(&region, margin_deg);
         let kept: Vec<(Rings, A)> = feats
             .into_iter()
-            .filter(|(rings, _)| match rings_bbox(rings) {
-                Some(b) => {
-                    b.max_lon >= crop.min_lon
-                        && b.min_lon <= crop.max_lon
-                        && b.max_lat >= crop.min_lat
-                        && b.min_lat <= crop.max_lat
-                }
-                None => false,
-            })
+            .filter(|(rings, _)| rings_bbox(rings).is_some_and(|b| overlaps(&b, &crop)))
             .collect();
+        Self::from_kept(kept, proj)
+    }
 
+    /// Build one index per `(region, projection)` from a single feature set, for
+    /// `--partition`.
+    ///
+    /// Each partition keeps its own cropped copy, so the geometry is cloned per
+    /// index. What is not repeated is the parse: reading the 149 MB IHO Sea
+    /// Areas or the GISCO LAU bundle dominates a `sea` or `place` run, and doing
+    /// it per partition would multiply that by the partition count. Feature
+    /// bounding boxes are computed once here for the same reason, since a box
+    /// costs a pass over every vertex.
+    pub fn build_many(
+        feats: &[(Rings, A)],
+        regions: &[(BBox, Laea)],
+        margin_deg: f64,
+    ) -> Vec<Self>
+    where
+        A: Clone,
+    {
+        let boxes: Vec<Option<BBox>> = feats.iter().map(|(r, _)| rings_bbox(r)).collect();
+        regions
+            .iter()
+            .map(|&(region, proj)| {
+                let crop = expand(&region, margin_deg);
+                let kept: Vec<(Rings, A)> = feats
+                    .iter()
+                    .zip(&boxes)
+                    .filter(|(_, b)| b.is_some_and(|b| overlaps(&b, &crop)))
+                    .map(|((rings, attr), _)| (rings.clone(), attr.clone()))
+                    .collect();
+                Self::from_kept(kept, proj)
+            })
+            .collect()
+    }
+
+    /// Index features that have already survived cropping.
+    fn from_kept(kept: Vec<(Rings, A)>, proj: Laea) -> Self {
         let mut boxes = Vec::with_capacity(kept.len());
         let mut segs = Vec::new();
         for (idx, (rings, _)) in kept.iter().enumerate() {

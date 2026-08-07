@@ -50,14 +50,72 @@ so rather than returning a plausible wrong number:
 ```
 [seastamp] warning: the points are spread over too much of the globe for any one
 projection to serve them (clustering 0.10 of a possible 1.00).
-[seastamp] warning: --region auto cannot help here. Split the run by area and
-concatenate the results, or accept the distance error.
+[seastamp] warning: --region auto cannot help here. Pass --partition to measure
+each area in its own projection.
 ```
 
 The clustering figure is the length of the mean direction vector: 1.00 when
 every point sits in one place, near 0 when they are spread evenly over the
 globe. A polar ring scores 0.97 despite spanning every longitude, because those
 points really do share a direction.
+
+## --partition, for data one projection cannot serve
+
+`--partition` is the answer to that warning. It splits the input into
+sub-regions, gives each its own crop box and its own projection center, and
+joins the results back together, so a globally spread table comes out as
+accurate as running each area separately would have been.
+
+> **Deciding between the two?** [auto or partition](./auto-or-partition.md)
+> compares them side by side on seven datasets and says which to use for what.
+
+```bash
+seastamp coast global-stations.parquet --data ./data/gshhg/... --partition
+```
+
+```
+[seastamp] --partition: 52 partitions over 540 unique locations, worst distortion 1.97%
+[seastamp] 540 rows, 540 unique locations -> global-stations.coast.parquet
+```
+
+**The split is driven by accuracy, not by a cell size or a count.** There is no
+number to choose. seastamp keeps halving a group while any of its points would
+be more than 2% out, and stops as soon as none are, so the partition count is
+whatever the data needs. That last figure bounds the **projection** error: no
+distance is scaled by more than that much by the map projection it was measured
+in. It does not bound the separate error from cropping, which
+[auto or partition](./auto-or-partition.md) explains and measures.
+
+Data that already fits one projection is left as one piece and comes out
+identical to an ordinary `--region auto` run, so the flag is safe to leave on:
+
+```
+[seastamp] --partition: 1 partition over 10 unique locations, worst distortion 0.98%
+```
+
+### What it is worth, in one line
+
+Where the points fall into a few distant clusters, `--partition` wins outright:
+one measured pair of survey areas went from 8.40% mean error to 0.16%. Where they
+are spread continuously across the globe it cuts the mean several-fold (23.85% to
+6.68%) but leaves a bad tail, because tight crops introduce an error of their own.
+Below about 5000 km of span it produces a single partition and is identical to
+`auto`. [auto or partition](./auto-or-partition.md) has the full measurements and
+explains the tail.
+
+### Limits
+
+- **`coast`, `sea`, and `place` take it.** `depth` reads a grid and `nearest`
+  works on the sphere, so neither has a projection to improve and neither takes
+  the flag at all.
+- **It takes no region or bounds of its own.** `--partition` derives every box
+  and center from your points, so combining it with `--region`, `--min-lon` and
+  friends, or `--proj-lon0` is an error rather than a precedence question.
+- **Results are no longer perfectly smooth across a partition boundary.** Two
+  nearby points measured in different projections can disagree slightly, bounded
+  by twice the reported distortion. It shows up only if you difference
+  neighboring values; each value on its own is more accurate than it would have
+  been without the flag.
 
 ## Presets
 

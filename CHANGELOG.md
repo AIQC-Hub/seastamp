@@ -4,6 +4,59 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-08-07
+
+### Added
+
+- `--partition` on `coast`, `sea`, and `place`, for point sets spread too widely
+  for any single map projection to measure accurately. It splits the input into
+  sub-regions, gives each its own crop box and projection center, and joins the
+  results back onto every input row, which is what the `--region auto` warning
+  used to tell you to do by hand.
+
+  The split is driven by the accuracy bound, not by a cell size or a partition
+  count, so there is nothing to tune: seastamp keeps halving a group while any of
+  its points would be more than 2% out and stops as soon as none are. Every run
+  reports the worst distortion it settled for, which bounds how much the map
+  projection scales any distance in the output. It does not bound the separate
+  error from cropping, which partitioning can make worse rather than better; the
+  new "auto or partition" page measures both. A fixed scheme cannot promise even
+  the projection bound: an earlier measurement had an IHO-area-based split 2.5 to
+  6.7% out for the ocean-sized areas.
+
+  Measured against every point re-run alone with the whole globe indexed and the
+  projection centered on itself. Two survey clusters an ocean apart went from
+  8.40% mean error to 0.16%, with nothing worse than 0.62%, and were also 3 times
+  quicker and 6 times smaller in memory, since two tight boxes index far less
+  than one box stretched between them. A grid spread evenly over the globe went
+  from 23.85% mean to 6.68%, but kept a bad tail: 17 of 138 points remained over
+  2%, because tight crops introduce a cropping error that the partition tolerance
+  does not govern. Below about 5000 km of span the run yields a single partition
+  and matches `--region auto` to within centimetres.
+
+  For `place` the effect is categorical rather than numerical: on 540 globally
+  spread points the two runs named a different nearest country for 91 of them,
+  and every spot check went to `--partition`. `sea` gains least, its containment
+  test being an exact lon/lat one that no projection touches.
+
+  The new [auto or partition](https://aiqc-hub.github.io/seastamp/reference/auto-or-partition.html)
+  page has the full measurements and says which to use when.
+
+  Data that already suits one projection is left as a single partition and comes
+  out identical to an ordinary run. Partitioning is deterministic: the same table
+  always yields the same partitions, and two runs produce byte-identical output.
+
+  `--partition` derives every box and center from the points, so it cannot be
+  combined with `--region`, `--min-lon` and friends, or `--proj-lon0/--proj-lat0`;
+  clap rejects the combination rather than picking a winner. `depth` and
+  `nearest` use no projection and do not take the flag at all.
+
+### Changed
+
+- The warnings about points spread too far for one projection now point at
+  `--partition` instead of telling you to split the run and concatenate the
+  results yourself.
+
 ## [0.13.0] - 2026-08-07
 
 ### Added
