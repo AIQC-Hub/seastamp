@@ -52,6 +52,30 @@ The other four commands (`coast`, `sea`, `place`, `nearest`) use only pure-Rust
 geometry and have no system dependencies. The prebuilt binary and a
 `--features static-netcdf` build vendor the C libraries, so neither needs these.
 
+## Shell completion
+
+Optional, and worth the minute it takes: `seastamp completions <shell>` prints a
+completion script, after which Tab fills in commands, flags, their enumerated
+values, and all 109 names `--region` accepts.
+
+```bash
+# bash
+mkdir -p ~/.local/share/bash-completion/completions
+seastamp completions bash > ~/.local/share/bash-completion/completions/seastamp
+
+# zsh (with ~/.zfunc on $fpath)
+mkdir -p ~/.zfunc
+seastamp completions zsh > ~/.zfunc/_seastamp
+
+# fish
+seastamp completions fish > ~/.config/fish/completions/seastamp.fish
+```
+
+Start a new shell afterwards, and regenerate the script when you upgrade
+seastamp: it is a snapshot of one version's CLI. `elvish` and `powershell` are
+supported too. See [completions](./commands/completions.md) for the details,
+including how to make bash list candidates on the first Tab.
+
 ## Reference data
 
 The datasets each command enriches from (shorelines, bathymetry, sea polygons,

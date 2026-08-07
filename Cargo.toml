@@ -16,6 +16,9 @@ exclude = ["CLAUDE.md", ".github/", "docs/"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+# Shell completion scripts, written by `seastamp completions <shell>`. It reads
+# the same clap command tree, so the scripts never drift from the CLI.
+clap_complete = "4"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
 rayon = "1"

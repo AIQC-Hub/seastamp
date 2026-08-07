@@ -69,6 +69,26 @@ then `config::IHO_AREAS`); with it, it reduces an IHO Sea Areas file (via
 optionally writes with `--output`. See [Regions](./regions.md) for the
 antimeridian rule that governs its longitude extents.
 
+## completions (`src/modules/completions.rs`)
+
+The other odd one out, and the smaller of the two: `clap_complete::generate`
+over `Cli::command()`, straight to stdout. Nothing to compute, and nothing to
+keep in step by hand, since the script is derived from the parser's own
+command tree.
+
+The exception is `--region`, a plain `String` that clap would have no
+candidates for. `cli::RegionNameParser` supplies `cli::region_names()` (109
+names: `auto`, `PRESET_NAMES`, `IHO_AREAS`) through `TypedValueParser::
+possible_values`, while `parse_ref` still accepts any string, so an unknown
+region keeps reaching `config::region_bbox` and its word-level "did you mean".
+The arg carries `hide_possible_values` to keep those 109 names out of `--help`;
+`tests/completions.rs` pins both halves of that, since they pull in opposite
+directions.
+
+Known limitation, also pinned by a test: the bash and zsh generators emit
+candidates as one space-separated list, so multi-word IHO names complete only to
+their first word. fish is fine. `region_bbox`'s suggestion covers the gap.
+
 ## Shared geometry and test conventions
 
 The shared vector geometry (point-to-segment distance, tagged R-tree segments,

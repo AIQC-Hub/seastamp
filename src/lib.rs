@@ -12,9 +12,9 @@
 //! reduce it to unique rounded locations, enrich those in parallel, then join the
 //! results back onto the full table and write it out.
 //!
-//! A sixth command, `regions`, stands outside that pipeline: it takes no points
+//! Two further commands stand outside that pipeline. `regions` takes no points
 //! and lists sea and ocean bounding boxes, which is where a region for the other
-//! commands comes from.
+//! commands comes from, and `completions` writes a shell completion script.
 
 use std::error::Error;
 
@@ -36,5 +36,6 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
         Commands::Place(args) => modules::place::run(args),
         Commands::Nearest(args) => modules::nearest::run(args),
         Commands::Regions(args) => modules::regions::run(args),
+        Commands::Completions(args) => modules::completions::run(args),
     }
 }

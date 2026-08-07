@@ -62,7 +62,7 @@ measure). Both exist because longitude wraps and a min/max does not.
 
 `coast`, `depth`, `sea`, `place`, `nearest` each build an `Enricher` from a data
 source (a bundled-dataset path, or the `--to` table for `nearest`) and options,
-then call `run_module`. `regions` builds no enricher at all.
+then call `run_module`. `regions` and `completions` build no enricher at all.
 
 Shared helpers: `default_output` (the `<stem>.<tag>.<ext>` fallback, where
 `<ext>` matches the input format, so the output format defaults to the input's)

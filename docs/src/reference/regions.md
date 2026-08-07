@@ -102,6 +102,11 @@ suggests the near misses:
 Error: unknown region 'Barent Sea'. Did you mean: Barentsz Sea?
 ```
 
+With [completions](../commands/completions.md) installed, Tab offers these names
+directly, which saves looking them up. In bash and zsh a name containing a space
+completes only to its first word, so `--region Bar<TAB>` stops at `Barentsz`;
+running that reports the full name back at you, as above.
+
 ## Explicit box and projection center
 
 Any preset value can be overridden with explicit bounds:
