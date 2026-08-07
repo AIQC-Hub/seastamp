@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.15.0] - 2026-08-08
 
 ### Fixed
 
@@ -39,8 +39,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   behind them read a stale output file whenever a measurement run failed,
   attributing one point's distance to another. Re-measured against a harness that
   verifies every run, a globally spread grid gives `--region auto` 30.54% mean and
-  974.72% worst error, not the 23.85% and 99.11% published. The conclusion is
-  unchanged and stronger: partitioning is worth far more than the old numbers
+  974.72% worst error, not the 23.85% and 99.11% published, and `--partition` as
+  shipped in 0.14.0 gives 2.46% and 129.16%, not 6.68% and 98.79%. The conclusion
+  is unchanged and stronger: partitioning is worth far more than the old numbers
   suggested.
 
 ## [0.14.0] - 2026-08-07
@@ -69,10 +70,10 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   boxes index far less than one box stretched between them. A grid spread evenly
   over the globe went from 30.54% mean to 2.46%, but kept a bad tail, because
   tight crops introduce a cropping error that the partition tolerance does not
-  govern; that tail is fixed in the next release. Below about 5000 km of span the
+  govern; that tail is fixed in 0.15.0. Below about 5000 km of span the
   run yields a single partition and matches `--region auto` to within centimetres.
 
-  (These figures were corrected after release; see the Unreleased section.)
+  (These figures were corrected after release; see 0.15.0.)
 
   For `place` the effect is categorical rather than numerical: on 540 globally
   spread points the two runs named a different nearest country for 91 of them,
