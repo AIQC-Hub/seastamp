@@ -17,22 +17,30 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   The split is driven by the accuracy bound, not by a cell size or a partition
   count, so there is nothing to tune: seastamp keeps halving a group while any of
   its points would be more than 2% out and stops as soon as none are. Every run
-  reports the worst distortion it settled for, which is an upper bound on how far
-  any distance in the output is from what a projection centered on that point
-  would have given. A fixed scheme cannot make that promise: an earlier
-  measurement had an IHO-area-based split 2.5 to 6.7% out for the ocean-sized
-  areas.
+  reports the worst distortion it settled for, which bounds how much the map
+  projection scales any distance in the output. It does not bound the separate
+  error from cropping, which partitioning can make worse rather than better; the
+  new "auto or partition" page measures both. A fixed scheme cannot promise even
+  the projection bound: an earlier measurement had an IHO-area-based split 2.5 to
+  6.7% out for the ocean-sized areas.
 
-  Measured with 540 points spread over the globe, against each point run on its
-  own. For `coast` on GSHHG `f`, `--region global` was 8.2% out on average and
-  14.0% at worst, `--partition` 0.6% and 1.4%; it cost 21 s and 1.4 GB against
-  6.0 s and 0.95 GB, the reference shoreline being read three times to stay
-  within a memory budget rather than once. For `place` on Natural Earth the
-  effect is categorical rather than numerical: the two runs named a different
-  nearest country for 91 of the 540 points, and on a sample of 20 of those,
-  `--partition` agreed with the per-point run 20 times and `--region global`
-  none. `sea` gains least, its containment test being an exact lon/lat one that
-  no projection touches; only its nearest-boundary fallback changes.
+  Measured against every point re-run alone with the whole globe indexed and the
+  projection centered on itself. Two survey clusters an ocean apart went from
+  8.40% mean error to 0.16%, with nothing worse than 0.62%, and were also 3 times
+  quicker and 6 times smaller in memory, since two tight boxes index far less
+  than one box stretched between them. A grid spread evenly over the globe went
+  from 23.85% mean to 6.68%, but kept a bad tail: 17 of 138 points remained over
+  2%, because tight crops introduce a cropping error that the partition tolerance
+  does not govern. Below about 5000 km of span the run yields a single partition
+  and matches `--region auto` to within centimetres.
+
+  For `place` the effect is categorical rather than numerical: on 540 globally
+  spread points the two runs named a different nearest country for 91 of them,
+  and every spot check went to `--partition`. `sea` gains least, its containment
+  test being an exact lon/lat one that no projection touches.
+
+  The new [auto or partition](docs/src/reference/auto-or-partition.md) page has
+  the full measurements and says which to use when.
 
   Data that already suits one projection is left as a single partition and comes
   out identical to an ordinary run. Partitioning is deterministic: the same table

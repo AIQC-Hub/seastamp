@@ -135,12 +135,16 @@ already fits one projection is left as one piece. It works on `coast`, `sea`, an
 `place`.
 
 ```bash
-# 540 points over the whole globe: coast's mean error goes from 8.2% to 0.6%
-seastamp coast global-stations.parquet --data ./data/gshhg/... --partition
+# two survey areas an ocean apart: coast's mean error goes from 8.4% to 0.2%
+seastamp coast stations.parquet --data ./data/gshhg/... --partition
 
 # and place stops assigning the wrong country to points in the open Pacific
-seastamp place global-stations.parquet --countries ./data/naturalearth/... --partition
+seastamp place stations.parquet --countries ./data/naturalearth/... --partition
 ```
+
+See [auto or partition](https://aiqc-hub.github.io/seastamp/reference/auto-or-partition.html)
+for which to use when, and for the one case where partitioning trades one kind of
+error for another.
 
 `seastamp regions` lists every name `--region` accepts, and with `--data`
 re-derives the boxes from an IHO Sea Areas file:

@@ -117,15 +117,29 @@ and clones only what each keeps. Feature bounding boxes are computed once there
 rather than per region: a box costs a pass over every vertex, and with dozens of
 partitions that would dominate.
 
-Measured on 540 globally spread points. `coast` on GSHHG `f`: `--region global`
-6.0 s and 0.95 GB at 8.2% mean error, `--partition` 21 s and 1.4 GB at 0.6% mean
-error over 52 partitions in 3 passes. `place` on Natural Earth: 0.5 s and 0.09 GB
-against 3.0 s and 0.36 GB, and the two runs named a different nearest country for
-91 of the 540 points, `--partition` being the right one on every spot check.
+**The tolerance bounds projection error only, not total error.** A partition also
+crops tightly, and a point whose nearest feature lies outside its crop gets an
+over-estimate that nothing here governs. Measured against every point re-run alone
+with a global crop and its own projection center: a globally spread grid improved
+from 23.85% mean to 6.68%, but 17 of 138 points stayed over 2% and the worst was
+98.79%, all of them open-ocean points that lost their coastline to the crop. Two
+distant clusters, where each crop still contains the coast its points care about,
+went from 8.40% to 0.16% with nothing over 0.62%. Do not describe the reported
+distortion as the accuracy of the output; `docs/src/reference/auto-or-partition.md`
+is the user-facing statement of this and must stay in step.
+
+Cost, on 540 globally spread points. `coast` on GSHHG `f`: 6.0 s and 0.95 GB for
+`--region global` against 21 s and 1.4 GB over 52 partitions in 3 passes. `place`
+on Natural Earth: 0.5 s and 0.09 GB against 3.0 s and 0.36 GB, and the two runs
+named a different nearest country for 91 of the 540 points, `--partition` being
+right on every spot check. Clustered data is *cheaper* partitioned (1.80 s and
+262 MB against 0.55 s and 40 MB), since one box spanning two clusters must hold
+everything between them.
 
 The per-partition "nothing overlapped this region" warnings are aggregated into
-one line (`N of M partitions matched no ...`). Do not restore the per-partition
-version: at 52 partitions it buries everything else in the log.
+one count. Do not restore the per-partition version: at 52 partitions it buries
+everything else in the log. The counts are per batch, so the wording avoids "of M
+partitions", which would be batch-relative and misleading.
 
 `place` decides its output column set in `run` rather than reading it off a built
 enricher, because `run_partitioned` needs the columns before any enricher exists.

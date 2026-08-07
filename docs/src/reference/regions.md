@@ -64,7 +64,10 @@ points really do share a direction.
 `--partition` is the answer to that warning. It splits the input into
 sub-regions, gives each its own crop box and its own projection center, and
 joins the results back together, so a globally spread table comes out as
-accurate as running each area separately would have been:
+accurate as running each area separately would have been.
+
+> **Deciding between the two?** [auto or partition](./auto-or-partition.md)
+> compares them side by side on seven datasets and says which to use for what.
 
 ```bash
 seastamp coast global-stations.parquet --data ./data/gshhg/... --partition
@@ -78,9 +81,10 @@ seastamp coast global-stations.parquet --data ./data/gshhg/... --partition
 **The split is driven by accuracy, not by a cell size or a count.** There is no
 number to choose. seastamp keeps halving a group while any of its points would
 be more than 2% out, and stops as soon as none are, so the partition count is
-whatever the data needs. That last figure is the run's own accuracy claim: no
-distance in the output is more than that far from what a projection centered on
-its own point would have given.
+whatever the data needs. That last figure bounds the **projection** error: no
+distance is scaled by more than that much by the map projection it was measured
+in. It does not bound the separate error from cropping, which
+[auto or partition](./auto-or-partition.md) explains and measures.
 
 Data that already fits one projection is left as one piece and comes out
 identical to an ordinary `--region auto` run, so the flag is safe to leave on:
@@ -89,47 +93,15 @@ identical to an ordinary `--region auto` run, so the flag is safe to leave on:
 [seastamp] --partition: 1 partition over 10 unique locations, worst distortion 0.98%
 ```
 
-### What it is worth
+### What it is worth, in one line
 
-Measured with 540 points spread over the globe, against each point run on its
-own with a projection centered on it.
-
-`coast`, against GSHHG `f`:
-
-| Run | Mean error | Worst error |
-|-----|-----------|-------------|
-| `--region global` | 8.2% | 14.0% |
-| `--partition` | 0.6% | 1.4% |
-
-`place`, against Natural Earth countries, is not about a percentage: a distorted
-projection picks the wrong country outright. The two runs disagreed on 91 of the
-540 points, and on a sample of 20 of those, `--partition` matched the per-point
-run 20 times and `--region global` none. A point west of the Kermadecs came out
-as "Fiji" under one global projection and "New Zealand" under `--partition`.
-
-`sea` benefits least. A point inside a sea polygon is resolved by an exact
-lon/lat containment test that no projection touches, so only the fallback for
-points inside no polygon changes.
-
-### What it costs
-
-Each partition crops its own copy of the reference data, so a partitioned run
-does more work than a single-projection one. The same 540-point global run:
-
-| Command | `--region global` | `--partition` |
-|---------|-------------------|---------------|
-| `coast` (GSHHG `f`) | 6.0 s, 0.95 GB | 21 s, 1.4 GB |
-| `place` (Natural Earth) | 0.5 s, 0.09 GB | 3.0 s, 0.36 GB |
-
-Regional data is much cheaper, because it needs few partitions or only one.
-
-seastamp reads the reference file once for as many partitions as it can hold at
-a time, and says so when it needs more than one pass:
-
-```
-[seastamp] --partition: 52 partitions over 540 unique locations, worst distortion
-1.97%, reference data read 3 times to stay within memory
-```
+Where the points fall into a few distant clusters, `--partition` wins outright:
+one measured pair of survey areas went from 8.40% mean error to 0.16%. Where they
+are spread continuously across the globe it cuts the mean several-fold (23.85% to
+6.68%) but leaves a bad tail, because tight crops introduce an error of their own.
+Below about 5000 km of span it produces a single partition and is identical to
+`auto`. [auto or partition](./auto-or-partition.md) has the full measurements and
+explains the tail.
 
 ### Limits
 

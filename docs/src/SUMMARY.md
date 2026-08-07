@@ -17,6 +17,7 @@
 
 - [Coverage and limits](./reference/coverage.md)
 - [Regions](./reference/regions.md)
+- [auto or partition](./reference/auto-or-partition.md)
 - [Output columns](./reference/output-columns.md)
 - [Configuration](./reference/configuration.md)
 - [Technical notes](./reference/technical-notes.md)
