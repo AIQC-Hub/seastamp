@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.16.1] - 2026-08-16
 
 ### Fixed
 
@@ -15,7 +15,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   in git, which is what the archives copy. This affected every release that
   shipped scripts, not only 0.16.0.
 
-## [0.16.0] - 2026-08-08
+- The 0.16.0 heading below was dated 2026-08-08; that release went out on
+  2026-08-16. Corrected here, so the published release notes for the 0.16.0 tag
+  keep the wrong date.
+
+## [0.16.0] - 2026-08-16
 
 ### Added
 
