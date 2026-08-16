@@ -5,7 +5,7 @@
 
 use seastamp::cli::Format;
 use seastamp::config::{Settings, BALTIC};
-use seastamp::modules::depth::DepthEnricher;
+use seastamp::modules::depth::DepthStamper;
 use seastamp::pipeline::run_module;
 use polars::prelude::*;
 
@@ -56,7 +56,7 @@ fn settings() -> Settings {
 fn run_lookup(nc: &std::path::Path, positive: bool, on_land: bool, df: DataFrame) -> DataFrame {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("out.parquet");
-    let enr = DepthEnricher::open(nc, "bathymetry".into(), positive, on_land).unwrap();
+    let enr = DepthStamper::open(nc, "bathymetry".into(), positive, on_land).unwrap();
     run_module(&enr, df, &settings(), &out, Format::Parquet).unwrap();
     ParquetReader::new(std::fs::File::open(&out).unwrap())
         .finish()
@@ -149,10 +149,10 @@ fn nearest_cell_and_out_of_grid() {
     assert!(b.get(3).map(|v| v.is_nan()).unwrap_or(true)); // lon 100 off grid
 }
 
-/// Regression test for a segfault: enriching a few hundred points crashed, while
+/// Regression test for a segfault: stamping a few hundred points crashed, while
 /// a handful got through. The pipeline used to spread locations across rayon
 /// workers, and a serial HDF5 build cannot be entered from more than one thread
-/// even with every call under a mutex, so `depth` now enriches single-threaded.
+/// even with every call under a mutex, so `depth` now stamps single-threaded.
 ///
 /// This only reproduces against a serial HDF5, so it passes either way on a
 /// system HDF5 built thread-safe (Ubuntu's is). To exercise the configuration

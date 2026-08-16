@@ -2,10 +2,10 @@
 //!
 //! 1. Read the input table (done by the caller, passed in as a `DataFrame`).
 //! 2. Reduce it to unique rounded `(lon, lat)` locations.
-//! 3. Enrich those unique locations in parallel (rayon).
+//! 3. Stamp those unique locations in parallel (rayon).
 //! 4. Join the results back onto every input row and write the table out.
 //!
-//! A module only implements [`Enricher`]: it declares the columns it appends and
+//! A module only implements [`Stamper`]: it declares the columns it appends and
 //! computes their values for one location. Everything else lives here, so all
 //! four modules share the same de-duplication, parallelism, and join.
 
@@ -46,14 +46,14 @@ pub enum Value {
 }
 
 /// A module's per-location logic. `Sync` so locations run in parallel.
-pub trait Enricher: Sync {
-    /// The columns this enricher appends, in order.
+pub trait Stamper: Sync {
+    /// The columns this stamper appends, in order.
     fn outputs(&self) -> Vec<OutputSpec>;
     /// Compute the values for one unique location. The returned vector must line
     /// up with `outputs()`.
-    fn enrich(&self, lon: f64, lat: f64) -> Vec<Value>;
+    fn stamp(&self, lon: f64, lat: f64) -> Vec<Value>;
 
-    /// Whether locations may enrich on many threads at once. Default `true`.
+    /// Whether locations may stamp on many threads at once. Default `true`.
     ///
     /// A module returns `false` when its backing library cannot be entered from
     /// more than one thread, whatever the locking. `depth` does: a serial HDF5
@@ -161,7 +161,7 @@ fn column_f64(df: &DataFrame, name: &str) -> Result<Vec<f64>, Box<dyn Error>> {
 
 /// The input reduced to unique rounded locations, with the mapping back to rows.
 struct Reduced {
-    /// Unique rounded `(lon, lat)`, the only coordinates an enricher ever sees.
+    /// Unique rounded `(lon, lat)`, the only coordinates a stamper ever sees.
     uniq: Vec<(f64, f64)>,
     index: HashMap<(i64, i64), usize>,
     /// Each input row's key, or `None` where the row has no usable location.
@@ -201,7 +201,7 @@ fn reduce(df: &DataFrame, s: &Settings) -> Result<Reduced, Box<dyn Error>> {
     Ok(Reduced { uniq, index, row_key })
 }
 
-/// Refuse to clobber an existing column unless asked. Checked before enrichment
+/// Refuse to clobber an existing column unless asked. Checked before stamping
 /// so a clash fails fast rather than after a long run.
 fn check_clashes(df: &DataFrame, specs: &[OutputSpec], s: &Settings) -> Result<(), Box<dyn Error>> {
     let clashes: Vec<&str> = specs
@@ -227,21 +227,21 @@ fn set_threads(s: &Settings) {
     }
 }
 
-/// Enrich a slice of unique locations, in parallel unless the module forbids it
-/// (see [`Enricher::parallel`]). The serial path stays on this thread
+/// Stamp a slice of unique locations, in parallel unless the module forbids it
+/// (see [`Stamper::parallel`]). The serial path stays on this thread
 /// throughout, which is what a module backed by a single-threaded C library
 /// needs.
-fn enrich_all(enr: &dyn Enricher, locs: &[(f64, f64)]) -> Vec<Vec<Value>> {
+fn stamp_all(enr: &dyn Stamper, locs: &[(f64, f64)]) -> Vec<Vec<Value>> {
     if enr.parallel() {
-        locs.par_iter().map(|&(lo, la)| enr.enrich(lo, la)).collect()
+        locs.par_iter().map(|&(lo, la)| enr.stamp(lo, la)).collect()
     } else {
-        locs.iter().map(|&(lo, la)| enr.enrich(lo, la)).collect()
+        locs.iter().map(|&(lo, la)| enr.stamp(lo, la)).collect()
     }
 }
 
-/// Run the shared pipeline for one enricher and write the result.
+/// Run the shared pipeline for one stamper and write the result.
 pub fn run_module(
-    enr: &dyn Enricher,
+    enr: &dyn Stamper,
     df: DataFrame,
     s: &Settings,
     out_path: &Path,
@@ -252,13 +252,13 @@ pub fn run_module(
     check_clashes(&df, &specs, s)?;
     let r = reduce(&df, s)?;
 
-    // Warn before enriching, so the advice is visible above the results rather
+    // Warn before stamping, so the advice is visible above the results rather
     // than buried after a long run.
     if let Some(c) = enr.projection_center() {
         warn_if_far_from_center(&r.uniq, c);
     }
 
-    let results = enrich_all(enr, &r.uniq);
+    let results = stamp_all(enr, &r.uniq);
     finish(df, specs, &results, &r, s, out_path, out_fmt)
 }
 
@@ -398,17 +398,17 @@ const WIDEN_MAX_DEG: f64 = 40.0;
 /// Meters per degree of latitude, for turning a shortfall into a crop margin.
 const DEG_M: f64 = crate::geo::projection::MEAN_RADIUS_M * std::f64::consts::PI / 180.0;
 
-/// Build the enrichers for one batch of partitions, given each partition's crop
+/// Build the stampers for one batch of partitions, given each partition's crop
 /// box and projection. A module implements this by reading its reference data
 /// once and cropping it to every box in the slice, which is what keeps a
 /// partitioned run from re-reading the file per partition.
 pub type BuildBatch<'a> =
-    dyn Fn(&[(BBox, Laea)]) -> Result<Vec<Box<dyn Enricher + 'a>>, Box<dyn Error>> + 'a;
+    dyn Fn(&[(BBox, Laea)]) -> Result<Vec<Box<dyn Stamper + 'a>>, Box<dyn Error>> + 'a;
 
 /// Run the pipeline with one projection per partition, for `--partition`.
 ///
 /// Splits the unique locations into pieces no single LAEA projection is too
-/// distorted for, builds an enricher per piece, and enriches each piece in its
+/// distorted for, builds a stamper per piece, and stamps each piece in its
 /// own projection. The join back onto input rows is the same scatter-gather
 /// [`run_module`] uses, so the output is identical in shape: only the accuracy
 /// of the numbers differs.
@@ -463,14 +463,14 @@ pub fn run_partitioned(
                 .zip(&boxes[range])
                 .map(|(&i, &b)| (b, Laea::new(parts[i].center.0, parts[i].center.1)))
                 .collect();
-            let enrichers = build(&regions)?;
-            if enrichers.len() != group.len() {
-                return Err("internal error: an enricher per partition was not built".into());
+            let stampers = build(&regions)?;
+            if stampers.len() != group.len() {
+                return Err("internal error: a stamper per partition was not built".into());
             }
-            for (&pi, enr) in group.iter().zip(&enrichers) {
+            for (&pi, enr) in group.iter().zip(&stampers) {
                 let p = &parts[pi];
                 let locs: Vec<(f64, f64)> = p.members.iter().map(|&i| r.uniq[i]).collect();
-                for (&i, v) in p.members.iter().zip(enrich_all(enr.as_ref(), &locs)) {
+                for (&i, v) in p.members.iter().zip(stamp_all(enr.as_ref(), &locs)) {
                     results[i] = Some(v);
                 }
                 // Widen the whole partition by whatever its hungriest point

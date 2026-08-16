@@ -31,7 +31,7 @@ use rstar::{PointDistance, RTree, RTreeObject, AABB};
 use crate::cli::{DistUnit, NearestArgs};
 use crate::config::{resolve, Settings};
 use crate::geo::{chord2_to_m, unit_sphere};
-use crate::pipeline::{run_module, Enricher, OutputKind, OutputSpec, Value};
+use crate::pipeline::{run_module, Stamper, OutputKind, OutputSpec, Value};
 
 /// One reference location as a unit-sphere point, tagged with its row index so
 /// the name can be looked up after the nearest-neighbor query.
@@ -54,7 +54,7 @@ impl PointDistance for RefPoint {
     }
 }
 
-pub struct NearestEnricher {
+pub struct NearestStamper {
     tree: RTree<RefPoint>,
     names: Vec<Option<String>>,
     to_km: bool,
@@ -62,10 +62,10 @@ pub struct NearestEnricher {
     dist_column: String,
 }
 
-impl NearestEnricher {
-    /// Build the enricher from reference locations already in memory: each item
+impl NearestStamper {
+    /// Build the stamper from reference locations already in memory: each item
     /// is `(lon, lat, name)`. Rows with a non-finite coordinate are skipped.
-    /// Used by [`NearestEnricher::open`] and by tests, so the geometry can be
+    /// Used by [`NearestStamper::open`] and by tests, so the geometry can be
     /// exercised without a file on disk.
     pub fn from_points<I>(points: I, unit: DistUnit, name_column: String, dist_column: String) -> Self
     where
@@ -80,7 +80,7 @@ impl NearestEnricher {
             refs.push(RefPoint { xyz: unit_sphere(lon, lat), tag: names.len() });
             names.push(name);
         }
-        NearestEnricher {
+        NearestStamper {
             tree: RTree::bulk_load(refs),
             names,
             to_km: matches!(unit, DistUnit::Km),
@@ -117,7 +117,7 @@ impl NearestEnricher {
     }
 }
 
-impl Enricher for NearestEnricher {
+impl Stamper for NearestStamper {
     fn outputs(&self) -> Vec<OutputSpec> {
         Vec::from([
             OutputSpec { name: self.name_column.clone(), kind: OutputKind::Text },
@@ -125,7 +125,7 @@ impl Enricher for NearestEnricher {
         ])
     }
 
-    fn enrich(&self, lon: f64, lat: f64) -> Vec<Value> {
+    fn stamp(&self, lon: f64, lat: f64) -> Vec<Value> {
         let p = unit_sphere(lon, lat);
         match self.tree.nearest_neighbor(p) {
             Some(rp) => {
@@ -168,7 +168,7 @@ pub fn run(args: NearestArgs) -> Result<(), Box<dyn Error>> {
         .clone()
         .unwrap_or_else(|| super::default_output(&args.common.input, "nearest", args.common.in_format));
 
-    let enr = NearestEnricher::open(
+    let enr = NearestStamper::open(
         &reference,
         &args.to_lon_col,
         &args.to_lat_col,

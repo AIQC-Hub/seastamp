@@ -7,8 +7,8 @@
 //! ctddump already does) reads a single `elevation` cell per location, so the
 //! whole grid never needs to be resident.
 //!
-//! Unlike the other modules this one enriches on a single thread
-//! ([`Enricher::parallel`] returns `false`). HDF5 is commonly built serial, and a
+//! Unlike the other modules this one stamps on a single thread
+//! ([`Stamper::parallel`] returns `false`). HDF5 is commonly built serial, and a
 //! serial build cannot be entered from more than one thread even when every call
 //! is under a mutex: it keeps state that assumes one thread of execution, and
 //! reading a grid from rayon workers crashed (SIGSEGV in release, an error-stack
@@ -33,7 +33,7 @@ use std::sync::Mutex;
 
 use crate::cli::DepthArgs;
 use crate::config::{resolve, Settings};
-use crate::pipeline::{run_module, Enricher, OutputKind, OutputSpec, Value};
+use crate::pipeline::{run_module, Stamper, OutputKind, OutputSpec, Value};
 
 /// Regular-grid geometry of one axis: the coordinate of index 0 (a cell center),
 /// the spacing between adjacent centers, and the number of cells. Nearest-cell
@@ -78,14 +78,14 @@ impl Axis {
 /// HDF5's auto-print setting is per thread on a thread-safe build, so this runs
 /// on every thread that touches NetCDF rather than once per process. The
 /// `thread_local` guard makes the FFI call at most once per thread. It is public
-/// so code that writes NetCDF before opening an enricher (for example a test that
+/// so code that writes NetCDF before opening a stamper (for example a test that
 /// builds a grid) can silence it too.
 ///
 /// Safety: this reaches past the `netcdf` crate straight into HDF5, so it is not
 /// covered by the global lock that crate holds for every netcdf-c call. Call it
 /// only from a thread that is entitled to be inside HDF5, and with no other
-/// thread inside NetCDF. Both callers here satisfy that: enrichment for this
-/// module is single-threaded, and [`DepthEnricher::enrich`] additionally holds
+/// thread inside NetCDF. Both callers here satisfy that: stamping for this
+/// module is single-threaded, and [`DepthStamper::stamp`] additionally holds
 /// the file mutex across the call.
 pub fn silence_hdf5_diagnostics() {
     thread_local! {
@@ -120,8 +120,8 @@ fn normalize_lon(lon: f64) -> f64 {
     ((lon + 180.0).rem_euclid(360.0)) - 180.0
 }
 
-pub struct DepthEnricher {
-    // Enrichment is single-threaded for this module (see the header), so the
+pub struct DepthStamper {
+    // Stamping is single-threaded for this module (see the header), so the
     // mutex is belt and braces: it also keeps the raw HDF5 call in
     // silence_hdf5_diagnostics from overlapping a read.
     file: Mutex<netcdf::File>,
@@ -133,7 +133,7 @@ pub struct DepthEnricher {
     on_land: bool,
 }
 
-impl DepthEnricher {
+impl DepthStamper {
     /// Open a GEBCO NetCDF file and read its `lat`/`lon` axes. Fails if the file
     /// is missing the `lat`, `lon`, or `elevation` variables.
     pub fn open(
@@ -176,7 +176,7 @@ impl DepthEnricher {
     }
 }
 
-impl Enricher for DepthEnricher {
+impl Stamper for DepthStamper {
     /// HDF5 must be entered from one thread only; see the module header.
     fn parallel(&self) -> bool {
         false
@@ -193,7 +193,7 @@ impl Enricher for DepthEnricher {
         v
     }
 
-    fn enrich(&self, lon: f64, lat: f64) -> Vec<Value> {
+    fn stamp(&self, lon: f64, lat: f64) -> Vec<Value> {
         // Raw GEBCO elevation, negative below sea level, before any --positive
         // flip. `on_land` has to be read off this rather than the reported value,
         // since --positive inverts what a positive number means.
@@ -236,6 +236,6 @@ pub fn run(args: DepthArgs) -> Result<(), Box<dyn Error>> {
         .clone()
         .unwrap_or_else(|| super::default_output(&args.common.input, "depth", args.common.in_format));
 
-    let enr = DepthEnricher::open(&data, args.column, args.positive, args.on_land)?;
+    let enr = DepthStamper::open(&data, args.column, args.positive, args.on_land)?;
     run_module(&enr, df, &s, &out_path, args.common.out_format)
 }

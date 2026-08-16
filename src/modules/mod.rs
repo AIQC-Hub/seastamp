@@ -1,12 +1,12 @@
-//! The enrichment modules. Each builds an [`crate::pipeline::Enricher`] from
+//! The stamping modules. Each builds a [`crate::pipeline::Stamper`] from
 //! its data source and options, then hands off to `pipeline::run_module`:
 //! `coast` (nearest GSHHG shoreline distance), `depth` (GEBCO grid lookup),
 //! `sea` (IHO Sea Areas point in polygon), `place` (nearest Natural Earth
 //! country and GISCO LAU municipality), and `nearest` (nearest point of a
 //! caller-supplied table).
 //!
-//! Two commands stand outside that pattern, enriching nothing and owning no
-//! `Enricher`: `regions` lists sea and ocean bounding boxes, which is what the
+//! Two commands stand outside that pattern, stamping nothing and owning no
+//! `Stamper`: `regions` lists sea and ocean bounding boxes, which is what the
 //! other modules' region options consume, and `completions` writes a shell
 //! completion script for the CLI as a whole.
 

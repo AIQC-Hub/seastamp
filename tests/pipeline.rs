@@ -1,23 +1,23 @@
-//! End-to-end check of the shared pipeline with a deterministic dummy enricher:
-//! it verifies de-duplication of rounded locations, parallel enrichment, the
+//! End-to-end check of the shared pipeline with a deterministic dummy stamper:
+//! it verifies de-duplication of rounded locations, parallel stamping, the
 //! join back to every row, and round-tripping through Parquet.
 
 use seastamp::cli::Format;
 use seastamp::config::{Settings, BALTIC};
-use seastamp::pipeline::{run_module, Enricher, OutputKind, OutputSpec, Value};
+use seastamp::pipeline::{run_module, Stamper, OutputKind, OutputSpec, Value};
 use polars::prelude::*;
 
 /// Appends a float (lon + lat) and a text label, so both column kinds are tested.
 struct Dummy;
 
-impl Enricher for Dummy {
+impl Stamper for Dummy {
     fn outputs(&self) -> Vec<OutputSpec> {
         vec![
             OutputSpec { name: "val".into(), kind: OutputKind::Float },
             OutputSpec { name: "lbl".into(), kind: OutputKind::Text },
         ]
     }
-    fn enrich(&self, lon: f64, lat: f64) -> Vec<Value> {
+    fn stamp(&self, lon: f64, lat: f64) -> Vec<Value> {
         vec![
             Value::Float(lon + lat),
             Value::Text(Some(format!("{lon:.1},{lat:.1}"))),
@@ -131,7 +131,7 @@ fn nan_coordinates_get_null_outputs() {
         .unwrap();
     let val = back.column("val").unwrap().f64().unwrap();
     assert_eq!(val.get(0), Some(77.0));
-    // The NaN-coordinate row has no key, so its enrichment is null/NaN.
+    // The NaN-coordinate row has no key, so its stamping is null/NaN.
     assert!(val.get(1).map(|v| v.is_nan()).unwrap_or(true));
 }
 

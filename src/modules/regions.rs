@@ -1,7 +1,7 @@
 //! Sea and ocean bounding boxes: the built-in region presets, or one box per
 //! named area in an IHO Sea Areas file.
 //!
-//! Unlike the five enrichment modules this one takes no table of points and
+//! Unlike the five stamping modules this one takes no table of points and
 //! runs no pipeline. It answers "which seas exist, and where are they", so a
 //! user whose data sits outside the presets (which are mostly European) can
 //! find a starting box for their own region.

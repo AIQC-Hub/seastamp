@@ -6,7 +6,7 @@ use seastamp::cli::Format;
 use seastamp::config::{Settings, BALTIC};
 use seastamp::geo::vector::Rings;
 use seastamp::geo::Laea;
-use seastamp::modules::place::PlaceEnricher;
+use seastamp::modules::place::PlaceStamper;
 use seastamp::pipeline::run_module;
 use polars::prelude::*;
 
@@ -25,7 +25,7 @@ fn settings() -> Settings {
     }
 }
 
-fn run_lookup(enr: &PlaceEnricher, df: DataFrame) -> DataFrame {
+fn run_lookup(enr: &PlaceStamper, df: DataFrame) -> DataFrame {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("out.parquet");
     run_module(enr, df, &settings(), &out, Format::Parquet).unwrap();
@@ -56,7 +56,7 @@ fn countries() -> Vec<(Rings, (String, Option<String>))> {
 #[test]
 fn containment_on_land_and_nearest_country_offshore() {
     let proj = Laea::new(19.5, 59.5);
-    let enr = PlaceEnricher::from_features(countries(), None, BALTIC, proj, 1000.0, None);
+    let enr = PlaceStamper::from_features(countries(), None, BALTIC, proj, 1000.0, None);
 
     let df = df! {
         // inland Sweden, offshore nearer Sweden, offshore nearer Finland
@@ -87,7 +87,7 @@ fn nearest_municipality_offshore() {
         (boxed(17.8, 59.2, 18.3, 59.6), "Stockholm".to_string()),
         (boxed(24.5, 60.0, 25.5, 60.4), "Helsinki".to_string()),
     ];
-    let enr = PlaceEnricher::from_features(countries(), Some(munis), BALTIC, proj, 1000.0, None);
+    let enr = PlaceStamper::from_features(countries(), Some(munis), BALTIC, proj, 1000.0, None);
 
     let df = df! {
         "longitude" => [19.0f64, 23.0],
@@ -113,14 +113,14 @@ fn nearest_municipality_offshore() {
 fn municipality_dist_is_zero_inside_and_absent_without_a_set() {
     let proj = Laea::new(19.5, 59.5);
     let munis = vec![(boxed(17.8, 59.2, 18.3, 59.6), "Stockholm".to_string())];
-    let enr = PlaceEnricher::from_features(countries(), Some(munis), BALTIC, proj, 1000.0, None);
+    let enr = PlaceStamper::from_features(countries(), Some(munis), BALTIC, proj, 1000.0, None);
 
     let df = df! { "longitude" => [18.0f64], "latitude" => [59.4f64] }.unwrap();
     let back = run_lookup(&enr, df);
     assert_eq!(back.column("municipality").unwrap().str().unwrap().get(0), Some("Stockholm"));
     assert_eq!(back.column("municipality_dist").unwrap().f64().unwrap().get(0), Some(0.0));
 
-    let bare = PlaceEnricher::from_features(countries(), None, BALTIC, proj, 1000.0, None);
+    let bare = PlaceStamper::from_features(countries(), None, BALTIC, proj, 1000.0, None);
     let df = df! { "longitude" => [18.0f64], "latitude" => [59.4f64] }.unwrap();
     let back = run_lookup(&bare, df);
     assert!(back.column("municipality_dist").is_err());
@@ -135,7 +135,7 @@ fn max_municipality_dist_drops_distant_matches() {
 
     // Unbounded first, to learn how far the far point actually is.
     let unbounded =
-        PlaceEnricher::from_features(countries(), Some(munis.clone()), BALTIC, proj, 1000.0, None);
+        PlaceStamper::from_features(countries(), Some(munis.clone()), BALTIC, proj, 1000.0, None);
     let df = df! {
         // just outside the polygon, and far east of it
         "longitude" => [18.4f64, 25.0],
@@ -150,7 +150,7 @@ fn max_municipality_dist_drops_distant_matches() {
 
     // A cutoff between the two keeps the near match and drops the far one.
     let cutoff_m = (near_km + far_km) / 2.0 * 1000.0;
-    let bounded = PlaceEnricher::from_features(
+    let bounded = PlaceStamper::from_features(
         countries(),
         Some(munis),
         BALTIC,
@@ -171,7 +171,7 @@ fn max_municipality_dist_drops_distant_matches() {
 fn missing_country_code_stays_null() {
     let proj = Laea::new(19.5, 59.5);
     let feats = vec![(boxed(10.0, 55.0, 18.5, 66.0), ("Atlantis".to_string(), None))];
-    let enr = PlaceEnricher::from_features(feats, None, BALTIC, proj, 1000.0, None);
+    let enr = PlaceStamper::from_features(feats, None, BALTIC, proj, 1000.0, None);
 
     let df = df! { "longitude" => [15.0f64], "latitude" => [59.0f64] }.unwrap();
     let back = run_lookup(&enr, df);

@@ -38,7 +38,7 @@ Caveats baked into it:
   Because the details go to a third party and the download accepts
   CC BY-NC-SA 4.0, `show_config` prints them for confirmation first.
 
-## scripts/enrich.sh
+## scripts/stamp.sh
 
 Same ctddump-style bash: header doubles as `--help`, `log`/`run` tracing. Chains
 several modules over one input, each reading the previous step's output so their
@@ -50,6 +50,11 @@ removed by an EXIT trap (`--keep` to retain, `--dry-run` to preview). The trap
 and the temp-dir variable are global on purpose: a `local` in `main` is out of
 scope when the EXIT trap fires under `set -u`. The last module writes the final
 output, whose format follows its extension.
+
+`scripts/enrich.sh` is the pre-0.16 name, kept as a three-line `exec` wrapper.
+Keep it that thin: `usage()` here reads its own header comment out of `$0`, so
+anything the wrapper prints for `--help` would be the wrapper's own header rather
+than this script's. Delete it once the deprecation has had a release or two.
 
 ## scripts/gen_iho_areas.py
 

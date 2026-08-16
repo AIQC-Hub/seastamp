@@ -32,7 +32,7 @@ use crate::cli::{DistUnit, PlaceArgs};
 use crate::config::{resolve, BBox, Settings};
 use crate::geo::vector::{PolygonIndex, Rings, CROP_MARGIN_DEG};
 use crate::geo::Laea;
-use crate::pipeline::{run_module, run_partitioned, Enricher, OutputKind, OutputSpec, Value};
+use crate::pipeline::{run_module, run_partitioned, Stamper, OutputKind, OutputSpec, Value};
 
 /// Candidate DBF fields for the country name, tried in order per record.
 const COUNTRY_NAME_FIELDS: &[&str] = &["NAME", "ADMIN", "NAME_EN", "NAME_LONG"];
@@ -56,7 +56,7 @@ fn field_string(record: &shapefile::dbase::Record, candidates: &[&str]) -> Optio
     None
 }
 
-pub struct PlaceEnricher {
+pub struct PlaceStamper {
     countries: PolygonIndex<(String, Option<String>)>,
     municipalities: Option<PolygonIndex<String>>,
     /// Metres per output unit: 1000 for km, 1 for m.
@@ -66,9 +66,9 @@ pub struct PlaceEnricher {
     max_municipality_dist_m: Option<f64>,
 }
 
-impl PlaceEnricher {
-    /// Build the enricher from features already in memory (country attribute:
-    /// name and optional ISO code). Used by [`PlaceEnricher::open`] and by
+impl PlaceStamper {
+    /// Build the stamper from features already in memory (country attribute:
+    /// name and optional ISO code). Used by [`PlaceStamper::open`] and by
     /// tests, so the geometry can be exercised without shapefiles on disk.
     pub fn from_features(
         countries: Vec<(Rings, (String, Option<String>))>,
@@ -78,7 +78,7 @@ impl PlaceEnricher {
         dist_divisor: f64,
         max_municipality_dist_m: Option<f64>,
     ) -> Self {
-        PlaceEnricher {
+        PlaceStamper {
             countries: PolygonIndex::build(countries, region, CROP_MARGIN_DEG, proj),
             municipalities: municipalities
                 .map(|m| PolygonIndex::build(m, region, CROP_MARGIN_DEG, proj)),
@@ -88,14 +88,14 @@ impl PlaceEnricher {
     }
 
     /// Wrap indexes built elsewhere, which is how the `--partition` path and its
-    /// tests get one enricher per partition out of [`PolygonIndex::build_many`].
+    /// tests get one stamper per partition out of [`PolygonIndex::build_many`].
     pub fn from_indexes(
         countries: PolygonIndex<(String, Option<String>)>,
         municipalities: Option<PolygonIndex<String>>,
         dist_divisor: f64,
         max_municipality_dist_m: Option<f64>,
     ) -> Self {
-        PlaceEnricher {
+        PlaceStamper {
             countries,
             municipalities,
             dist_divisor,
@@ -103,7 +103,7 @@ impl PlaceEnricher {
         }
     }
 
-    /// Build one enricher per `(crop box, projection)` from a single read of
+    /// Build one stamper per `(crop box, projection)` from a single read of
     /// each shapefile, for `--partition`. See [`PolygonIndex::build_many`] for
     /// why the read is shared and the geometry is not.
     pub fn open_many(
@@ -232,7 +232,7 @@ impl PlaceEnricher {
     }
 }
 
-impl Enricher for PlaceEnricher {
+impl Stamper for PlaceStamper {
     /// `municipality_dist` is planar, and both lookups fall back to the nearest
     /// boundary for points inside no polygon, which is a planar comparison too.
     fn projection_center(&self) -> Option<(f64, f64)> {
@@ -276,7 +276,7 @@ impl Enricher for PlaceEnricher {
         v
     }
 
-    fn enrich(&self, lon: f64, lat: f64) -> Vec<Value> {
+    fn stamp(&self, lon: f64, lat: f64) -> Vec<Value> {
         let (country, code) = match self.countries.locate(lon, lat) {
             Some((name, code)) => (Some(name.clone()), code.clone()),
             None => (None, None),
@@ -345,7 +345,7 @@ pub fn run(args: PlaceArgs) -> Result<(), Box<dyn Error>> {
     if s.partition {
         let municipalities = args.municipalities.clone();
         let build = move |regions: &[(BBox, Laea)]| {
-            let built = PlaceEnricher::open_many(
+            let built = PlaceStamper::open_many(
                 &countries,
                 municipalities.as_deref(),
                 regions,
@@ -354,12 +354,12 @@ pub fn run(args: PlaceArgs) -> Result<(), Box<dyn Error>> {
             )?;
             Ok(built
                 .into_iter()
-                .map(|e| Box::new(e) as Box<dyn Enricher>)
+                .map(|e| Box::new(e) as Box<dyn Stamper>)
                 .collect())
         };
-        // The column set must be known before any enricher exists, and it turns
+        // The column set must be known before any stamper exists, and it turns
         // only on whether a municipality set was given, so it is decided here
-        // rather than read off a built enricher.
+        // rather than read off a built stamper.
         let mut outputs = Vec::from([
             OutputSpec { name: "country".into(), kind: OutputKind::Text },
             OutputSpec { name: "country_code".into(), kind: OutputKind::Text },
@@ -377,7 +377,7 @@ pub fn run(args: PlaceArgs) -> Result<(), Box<dyn Error>> {
     crate::config::apply_auto_region(&mut s, &pts)?;
 
     let proj = Laea::new(s.proj_lon0, s.proj_lat0);
-    let enr = PlaceEnricher::open(
+    let enr = PlaceStamper::open(
         &countries,
         args.municipalities.as_deref(),
         s.bbox,

@@ -4,7 +4,7 @@ What each module does and the caveats worth not rediscovering. Each module file'
 header comment states its own algorithm; this is the cross-module view.
 
 The scaffold (CLI, config resolution, multi-format I/O, and the shared pipeline
-`pipeline::run_module`) and all five enrichment modules are implemented and
+`pipeline::run_module`) and all five stamping modules are implemented and
 tested.
 
 ## depth (`src/modules/depth.rs`)
@@ -13,7 +13,7 @@ GEBCO NetCDF grid lookup keyed on `netcdf` (linking system HDF5). Nearest-cell b
 arithmetic, HDF5 diagnostic silencing, and a `tests/depth.rs` integration test
 that builds a small synthetic grid.
 
-Enrichment is single-threaded here, unlike every other module: see
+Stamping is single-threaded here, unlike every other module: see
 [HDF5 threading](./depth-hdf5.md), which is a hard rule.
 
 `--on-land` adds a boolean column flagging elevations at or above sea level, read
@@ -67,7 +67,7 @@ chord2_to_m}` hold the sphere math; `tests/nearest.rs` checks it against
 
 ## regions (`src/modules/regions.rs`)
 
-The odd one out. No `Enricher`, no `run_module`, no input table, no `CommonArgs` /
+The odd one out. No `Stamper`, no `run_module`, no input table, no `CommonArgs` /
 `RegionArgs`.
 
 Without `--data` it lists everything `--region` accepts (`config::PRESET_NAMES`

@@ -7,7 +7,7 @@ names `--region` accepts.
 seastamp completions <SHELL>
 ```
 
-Like [regions](./regions.md), this command takes no input table and enriches
+Like [regions](./regions.md), this command takes no input table and stamps
 nothing. It writes a script to stdout and exits. The script is generated from
 the same `clap` command tree the parser uses, so it cannot drift out of step
 with the real CLI.

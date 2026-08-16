@@ -24,10 +24,10 @@ pure Rust), and reads and writes Parquet, CSV, TSV, and the gzip variants
 
 ## How it works
 
-The five enrichment commands follow the same pipeline: read the input, reduce it to unique
-locations with rounded coordinates (3 decimals by default), enrich those unique
+The five stamping commands follow the same pipeline: read the input, reduce it to unique
+locations with rounded coordinates (3 decimals by default), stamp those unique
 locations in parallel, then join the results back onto every input row. A file
-with millions of rows but few distinct positions is therefore cheap to enrich,
+with millions of rows but few distinct positions is therefore cheap to stamp,
 because only the distinct positions are ever looked up. Two commands stand
 outside that pipeline and take no points: `regions` only lists boxes, and
 `completions` only prints a shell script.

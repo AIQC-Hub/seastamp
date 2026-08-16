@@ -121,7 +121,7 @@ jobs:
 
   # Prebuilt binaries for users without a Rust toolchain. `static-netcdf` vendors
   # HDF5 and netCDF into the executable, so the archive needs no system libraries
-  # at all. The helper scripts ship alongside, since the enrichment pipeline is
+  # at all. The helper scripts ship alongside, since the stamping pipeline is
   # part of the product and would otherwise be reachable only by cloning.
   binaries:
     name: Build ${{ matrix.target }}

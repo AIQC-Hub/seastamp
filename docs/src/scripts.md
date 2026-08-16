@@ -1,13 +1,13 @@
-# Enrich with several modules
+# Stamp with several modules
 
-`scripts/enrich.sh` runs several modules over one input in sequence, so the
+`scripts/stamp.sh` runs several modules over one input in sequence, so the
 result is a single file carrying the new columns of every module you selected.
 Each module is chained onto the previous one's output, its columns accumulating,
 and the in-between files are written to a temporary directory that is removed
 when the script ends. Only the final output file remains.
 
 ```bash
-scripts/enrich.sh [options] <input> <output>
+scripts/stamp.sh [options] <input> <output>
 ```
 
 ## Selecting modules
@@ -56,15 +56,15 @@ thread. `--in-format` describes the original input. Other options:
 ## Example
 
 ```bash
-scripts/enrich.sh cores.parquet cores.enriched.parquet \
+scripts/stamp.sh cores.parquet cores.stamped.parquet \
   --coast ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f \
   --depth ./data/gebco/GEBCO_2024_sub_ice.nc \
   --nearest farms.parquet --nearest-name-field farm_name
 ```
 
-This writes one file, `cores.enriched.parquet`, with the original columns plus
+This writes one file, `cores.stamped.parquet`, with the original columns plus
 `dist_to_coast`, `bathymetry`, `nearest_name`, and `nearest_dist`. The
 intermediate coast-only and coast+depth files are removed on exit.
 
 The intermediate files are Parquet (lossless); the final file's format follows
-its extension, so `cores.enriched.csv.gz` would be written as gzipped CSV.
+its extension, so `cores.stamped.csv.gz` would be written as gzipped CSV.

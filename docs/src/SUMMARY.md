@@ -29,4 +29,4 @@
 # Helper scripts
 
 - [Overview](./helper-scripts.md)
-- [Enrich with several modules](./scripts.md)
+- [Stamp with several modules](./scripts.md)

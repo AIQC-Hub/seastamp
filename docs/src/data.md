@@ -1,6 +1,6 @@
 # Reference datasets
 
-The datasets each command enriches from are large and are not bundled or
+The datasets each command stamps from are large and are not bundled or
 shipped. Each command takes its data path by flag (`--data`, or `--countries` /
 `--municipalities` for `place`). The `nearest` command is the exception: its
 reference data is a table you supply with `--to`, not a downloaded dataset.

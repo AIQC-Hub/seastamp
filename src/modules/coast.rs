@@ -19,7 +19,7 @@
 //!
 //! The whole L1 shapefile is parsed to filter it (there is no random-access skip
 //! here yet); for very large inputs that one-time read dominates. Reads use an
-//! immutable R-tree, so locations enrich fully in parallel with no locking.
+//! immutable R-tree, so locations stamp fully in parallel with no locking.
 
 use std::error::Error;
 use std::path::{Path, PathBuf};
@@ -30,7 +30,7 @@ use crate::cli::{CoastArgs, DistUnit};
 use crate::config::{resolve, BBox, Settings};
 use crate::geo::vector::{crop_reach_m, expand, point_seg_dist2, CROP_MARGIN_DEG};
 use crate::geo::Laea;
-use crate::pipeline::{run_module, run_partitioned, Enricher, OutputKind, OutputSpec, Value};
+use crate::pipeline::{run_module, run_partitioned, Stamper, OutputKind, OutputSpec, Value};
 
 /// One shoreline segment in projected (LAEA) meters.
 struct Segment {
@@ -84,19 +84,19 @@ fn add_segment(
     segs.push(Segment { ax, ay, bx, by });
 }
 
-pub struct CoastEnricher {
+pub struct CoastStamper {
     tree: RTree<Segment>,
     proj: Laea,
     to_km: bool,
     column: String,
-    /// The grown box the shoreline was cropped to, kept so the enricher can say
+    /// The grown box the shoreline was cropped to, kept so the stamper can say
     /// whether a distance reached further than the data it was allowed to see.
     crop: BBox,
 }
 
-impl CoastEnricher {
-    /// Build the enricher from shoreline rings already in memory (lon/lat vertex
-    /// lists). Used by [`CoastEnricher::open`] and by tests, so the geometry can
+impl CoastStamper {
+    /// Build the stamper from shoreline rings already in memory (lon/lat vertex
+    /// lists). Used by [`CoastStamper::open`] and by tests, so the geometry can
     /// be exercised without a shapefile on disk.
     pub fn from_rings<I>(
         rings: I,
@@ -115,7 +115,7 @@ impl CoastEnricher {
                 add_segment(&mut segs, w[0].0, w[0].1, w[1].0, w[1].1, &crop, &proj);
             }
         }
-        CoastEnricher {
+        CoastStamper {
             tree: RTree::bulk_load(segs),
             proj,
             to_km: matches!(unit, DistUnit::Km),
@@ -137,7 +137,7 @@ impl CoastEnricher {
         Ok(built.remove(0))
     }
 
-    /// Build one enricher per `(crop box, projection)` from a single pass over
+    /// Build one stamper per `(crop box, projection)` from a single pass over
     /// the shapefile, for `--partition`.
     ///
     /// The pass is shared on purpose. Parsing the 154 MB `f` shoreline dominates
@@ -194,7 +194,7 @@ impl CoastEnricher {
             .into_iter()
             .zip(regions)
             .zip(crops)
-            .map(|((s, &(_, proj)), crop)| CoastEnricher {
+            .map(|((s, &(_, proj)), crop)| CoastStamper {
                 tree: RTree::bulk_load(s),
                 proj,
                 to_km: matches!(unit, DistUnit::Km),
@@ -205,7 +205,7 @@ impl CoastEnricher {
     }
 }
 
-impl Enricher for CoastEnricher {
+impl Stamper for CoastStamper {
     /// Distances here are planar in the region LAEA, so the pipeline warns when
     /// the input sits far from its center.
     fn projection_center(&self) -> Option<(f64, f64)> {
@@ -234,7 +234,7 @@ impl Enricher for CoastEnricher {
         }])
     }
 
-    fn enrich(&self, lon: f64, lat: f64) -> Vec<Value> {
+    fn stamp(&self, lon: f64, lat: f64) -> Vec<Value> {
         let (x, y) = self.proj.forward(lon, lat);
         let p = [x, y];
         let d = match self.tree.nearest_neighbor(p) {
@@ -296,10 +296,10 @@ pub fn run(args: CoastArgs) -> Result<(), Box<dyn Error>> {
         let unit = args.unit;
         let column = args.column.clone();
         let build = move |regions: &[(BBox, Laea)]| {
-            let built = CoastEnricher::open_many(&data, regions, unit, &column)?;
+            let built = CoastStamper::open_many(&data, regions, unit, &column)?;
             Ok(built
                 .into_iter()
-                .map(|e| Box::new(e) as Box<dyn Enricher>)
+                .map(|e| Box::new(e) as Box<dyn Stamper>)
                 .collect())
         };
         let outputs = [OutputSpec {
@@ -315,6 +315,6 @@ pub fn run(args: CoastArgs) -> Result<(), Box<dyn Error>> {
     crate::config::apply_auto_region(&mut s, &pts)?;
 
     let proj = Laea::new(s.proj_lon0, s.proj_lat0);
-    let enr = CoastEnricher::open(&data, s.bbox, proj, args.unit, args.column)?;
+    let enr = CoastStamper::open(&data, s.bbox, proj, args.unit, args.column)?;
     run_module(&enr, df, &s, &out_path, args.common.out_format)
 }

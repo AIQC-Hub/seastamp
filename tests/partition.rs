@@ -16,10 +16,10 @@ use seastamp::config::{Settings, BBox, GLOBAL};
 use seastamp::geo::partition::{partition, worst_distortion, DEFAULT_TOLERANCE};
 use seastamp::geo::vector::{PolygonIndex, Rings};
 use seastamp::geo::Laea;
-use seastamp::modules::coast::CoastEnricher;
-use seastamp::modules::place::PlaceEnricher;
-use seastamp::modules::sea::SeaEnricher;
-use seastamp::pipeline::{run_module, run_partitioned, Enricher, OutputKind, OutputSpec};
+use seastamp::modules::coast::CoastStamper;
+use seastamp::modules::place::PlaceStamper;
+use seastamp::modules::sea::SeaStamper;
+use seastamp::pipeline::{run_module, run_partitioned, Stamper, OutputKind, OutputSpec};
 
 fn settings(partition: bool) -> Settings {
     Settings {
@@ -84,13 +84,13 @@ fn run_partitioned_coast(pts: &[(f64, f64)]) -> DataFrame {
         Ok(regions
             .iter()
             .map(|&(bbox, proj)| {
-                Box::new(CoastEnricher::from_rings(
+                Box::new(CoastStamper::from_rings(
                     scattered_coasts(),
                     bbox,
                     proj,
                     DistUnit::Km,
                     "dist_to_coast".into(),
-                )) as Box<dyn Enricher>
+                )) as Box<dyn Stamper>
             })
             .collect())
     };
@@ -114,7 +114,7 @@ fn run_alone(pt: (f64, f64)) -> f64 {
         max_lat: pt.1 + 10.0,
     };
     let enr =
-        CoastEnricher::from_rings(scattered_coasts(), bbox, proj, DistUnit::Km, "dist_to_coast".into());
+        CoastStamper::from_rings(scattered_coasts(), bbox, proj, DistUnit::Km, "dist_to_coast".into());
     run_module(&enr, frame(&[pt]), &settings(false), &out, Format::Parquet).unwrap();
     dists(&read_back(&out))[0]
 }
@@ -144,7 +144,7 @@ fn one_projection_really_is_worse() {
     let pts = points();
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("out.parquet");
-    let enr = CoastEnricher::from_rings(
+    let enr = CoastStamper::from_rings(
         scattered_coasts(),
         GLOBAL,
         Laea::new(0.0, 0.0),
@@ -182,7 +182,7 @@ fn a_local_run_is_untouched_by_partitioning() {
     let center = parts[0].center;
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("out.parquet");
-    let enr = CoastEnricher::from_rings(
+    let enr = CoastStamper::from_rings(
         scattered_coasts(),
         parts[0].bbox,
         Laea::new(center.0, center.1),
@@ -211,13 +211,13 @@ fn rows_without_a_location_keep_their_place() {
         Ok(regions
             .iter()
             .map(|&(bbox, proj)| {
-                Box::new(CoastEnricher::from_rings(
+                Box::new(CoastStamper::from_rings(
                     scattered_coasts(),
                     bbox,
                     proj,
                     DistUnit::Km,
                     "dist_to_coast".into(),
-                )) as Box<dyn Enricher>
+                )) as Box<dyn Stamper>
             })
             .collect())
     };
@@ -268,7 +268,7 @@ fn sea_names_every_point_through_its_own_partition() {
             PolygonIndex::build_many(&scattered_seas(), regions, 5.0)
                 .into_iter()
                 .map(|index| {
-                    Box::new(SeaEnricher::from_index(index, "sea_name".into())) as Box<dyn Enricher>
+                    Box::new(SeaStamper::from_index(index, "sea_name".into())) as Box<dyn Stamper>
                 })
                 .collect(),
         )
@@ -318,7 +318,7 @@ fn place_distances_match_running_each_area_alone() {
         Ok(c.into_iter()
             .zip(m)
             .map(|(c, m)| {
-                Box::new(PlaceEnricher::from_indexes(c, Some(m), 1000.0, None)) as Box<dyn Enricher>
+                Box::new(PlaceStamper::from_indexes(c, Some(m), 1000.0, None)) as Box<dyn Stamper>
             })
             .collect())
     };
@@ -452,13 +452,13 @@ fn a_partition_cropped_too_tightly_is_widened() {
         Ok(regions
             .iter()
             .map(|&(bbox, proj)| {
-                Box::new(CoastEnricher::from_rings(
+                Box::new(CoastStamper::from_rings(
                     rings.clone(),
                     bbox,
                     proj,
                     DistUnit::Km,
                     "dist_to_coast".into(),
-                )) as Box<dyn Enricher>
+                )) as Box<dyn Stamper>
             })
             .collect())
     };
@@ -472,7 +472,7 @@ fn a_partition_cropped_too_tightly_is_widened() {
     // Against the same coastline with nothing cropped away at all.
     for (i, &pt) in pts.iter().enumerate() {
         let d2 = dir.path().join("ref.parquet");
-        let enr = CoastEnricher::from_rings(
+        let enr = CoastStamper::from_rings(
             far_coast.clone(),
             GLOBAL,
             Laea::new(pt.0, pt.1),
@@ -500,11 +500,11 @@ fn a_partition_cropped_too_tightly_is_widened() {
 /// inside the first crop.
 #[test]
 fn a_sufficient_crop_is_not_widened() {
-    use seastamp::pipeline::Enricher as _;
+    use seastamp::pipeline::Stamper as _;
 
     let coast: Vec<Vec<(f64, f64)>> = vec![vec![(20.0, 58.0), (20.0, 62.0)]];
     let region = BBox { min_lon: 15.0, max_lon: 25.0, min_lat: 55.0, max_lat: 65.0 };
-    let enr = CoastEnricher::from_rings(
+    let enr = CoastStamper::from_rings(
         coast,
         region,
         Laea::new(20.0, 60.0),
