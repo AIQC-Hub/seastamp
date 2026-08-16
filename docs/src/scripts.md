@@ -42,16 +42,27 @@ does not matter, since each adds distinct columns.
 
 ## Common and other options
 
-`--region`, `--lon-col`, `--lat-col`, `--decimals`, and `--threads` are passed to
-every module that accepts them (`--region` only to coast, sea, and place).
-`--threads` reaches `depth` too, but not its grid lookup, which always runs on one
-thread. `--in-format` describes the original input. Other options:
+`--region`, `--partition`, `--lon-col`, `--lat-col`, `--decimals`, and
+`--threads` are passed to every module that accepts them (`--region` and
+`--partition` only to coast, sea, and place). `--threads` reaches `depth` too,
+but not its grid lookup, which always runs on one thread. `--in-format`
+describes the original input. Other options:
 
 | Option | Meaning |
 |--------|---------|
 | `--bin PATH` | seastamp binary (default: `$SEASTAMP_BIN`, else the one on `PATH`, else `./target/release` or `./target/debug`) |
 | `-k, --keep` | Keep the intermediate files (default: remove them) |
 | `-n, --dry-run` | Print the commands without running them |
+
+`--partition` and `--region` are exclusive, here as in seastamp itself: a
+partitioned run derives a box and a projection center for each piece of the
+input, so there is no single region to set. Passing both is an error before any
+module runs.
+
+Each step chains onto the previous one's output, which carries the same points,
+so every partitioned module in a chain splits the input the same way and reports
+the same partition count. See [auto or partition](./reference/auto-or-partition.md)
+for when the flag is worth using.
 
 ## Example
 

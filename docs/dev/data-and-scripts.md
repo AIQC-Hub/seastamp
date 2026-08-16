@@ -44,6 +44,10 @@ Same ctddump-style bash: header doubles as `--help`, `log`/`run` tracing. Chains
 several modules over one input, each reading the previous step's output so their
 columns accumulate into a single final file.
 
+`region_args` emits `--partition` or `--region`, never both, and only for coast,
+sea, and place. The script rejects the pair itself rather than letting clap do
+it, so the run fails before the first module instead of part way through a chain.
+
 A module runs when its data flag is given (`--coast`, `--depth`, `--sea`,
 `--countries`, `--nearest`); intermediates are Parquet in a `mktemp -d` dir
 removed by an EXIT trap (`--keep` to retain, `--dry-run` to preview). The trap

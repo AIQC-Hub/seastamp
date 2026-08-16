@@ -36,6 +36,9 @@
 #
 # Common options (applied to every module that accepts them):
 #   --region NAME         region preset (coast, sea, place). See seastamp --help
+#   --partition           measure each area of the input in its own projection
+#                         (coast, sea, place). For data spread too widely for one
+#                         projection to serve. Cannot be combined with --region
 #   --lon-col NAME        longitude column   (default: longitude)
 #   --lat-col NAME        latitude column    (default: latitude)
 #   --decimals N          rounding before de-duplication  (default: 3)
@@ -73,6 +76,7 @@ MAX_MUNI_DIST=
 NEAREST_NAME_FIELD=name
 NEAREST_UNIT=km
 REGION=
+PARTITION=0
 LON_COL=; LAT_COL=; DECIMALS=; THREADS=; IN_FORMAT=
 BIN="${SEASTAMP_BIN:-}"
 KEEP=0
@@ -118,6 +122,7 @@ while [[ $# -gt 0 ]]; do
     --nearest-unit=*)     NEAREST_UNIT="${1#*=}"; shift ;;
     --region)             REGION="${2:?--region requires a name}"; shift 2 ;;
     --region=*)           REGION="${1#*=}"; shift ;;
+    --partition)          PARTITION=1; shift ;;
     --lon-col)            LON_COL="${2:?--lon-col requires a name}"; shift 2 ;;
     --lon-col=*)          LON_COL="${1#*=}"; shift ;;
     --lat-col)            LAT_COL="${2:?--lat-col requires a name}"; shift 2 ;;
@@ -179,7 +184,14 @@ common_args() {  # echoes the flags shared by all modules
   [[ ${#a[@]} -gt 0 ]] && printf '%s\n' "${a[@]}"
 }
 region_args() {  # echoes the region flag, for coast / sea / place
-  [[ -n "$REGION" ]] && printf '%s\n' --region "$REGION"
+  # --partition derives a box and a projection center per piece of the input, so
+  # seastamp itself refuses it alongside --region. They are exclusive here too.
+  if [[ "$PARTITION" == 1 ]]; then
+    printf '%s\n' --partition
+  elif [[ -n "$REGION" ]]; then
+    printf '%s\n' --region "$REGION"
+  fi
+  return 0
 }
 
 # Echo the module-specific flags for <module>, one per line.
@@ -223,8 +235,19 @@ main() {
   if [[ -n "$MUNICIPALITIES" && -z "$COUNTRIES" ]]; then
     echo "--municipalities needs --countries (the place module)." >&2; return 1
   fi
+  if [[ "$PARTITION" == 1 && -n "$REGION" ]]; then
+    echo "--partition and --region are exclusive: --partition derives a box and a" >&2
+    echo "projection center for each piece of the input, so there is no single" >&2
+    echo "region for --region to set." >&2
+    return 1
+  fi
   if [[ ${#modules[@]} -eq 0 ]]; then
     echo "Select at least one module (see --help)." >&2; usage; return 1
+  fi
+  # depth reads a grid and nearest works on the sphere, so neither takes
+  # --partition. Say so rather than let the flag look like it did something.
+  if [[ "$PARTITION" == 1 && -z "$COAST" && -z "$SEA" && -z "$COUNTRIES" ]]; then
+    log "warning: --partition applies to coast, sea, and place only; none selected"
   fi
 
   resolve_bin || return 1

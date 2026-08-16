@@ -6,6 +6,15 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/stamp.sh` takes `--partition` and forwards it to the modules that
+  accept it (`coast`, `sea`, `place`). It was previously rejected by the script
+  as an unknown option, so a multi-module run had no way to reach the flag.
+  Passing it together with `--region` is an error before any module runs, and
+  passing it when only `depth` or `nearest` are selected warns rather than
+  silently doing nothing.
+
 ### Changed
 
 - The word "enrich" is gone from the source and the documentation, replaced by
