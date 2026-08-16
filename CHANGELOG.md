@@ -4,7 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.16.0] - 2026-08-08
+## [0.16.1] - 2026-08-16
+
+### Fixed
+
+- The helper scripts in the release archives are executable again. They were
+  committed as mode 644, so `scripts/stamp.sh` and friends unpacked from a
+  prebuilt archive failed with "Permission denied" and had to be run as
+  `bash scripts/stamp.sh` or chmod'ed first. All four now carry the execute bit
+  in git, which is what the archives copy. This affected every release that
+  shipped scripts, not only 0.16.0.
+
+- The 0.16.0 heading below was dated 2026-08-08; that release went out on
+  2026-08-16. Corrected here, so the published release notes for the 0.16.0 tag
+  keep the wrong date.
+
+## [0.16.0] - 2026-08-16
 
 ### Added
 
