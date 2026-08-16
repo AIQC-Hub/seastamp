@@ -1,5 +1,10 @@
 # Data sources and helper scripts
 
+Everything in `scripts/` is mode 755 in git and must stay that way: `publish.yml`
+copies the directory verbatim into each release archive, so a file committed 644
+ships unrunnable. Add a new script with `git update-index --chmod=+x`, since a
+local `chmod` alone does not reach the index.
+
 ## Data sources (not bundled)
 
 The reference datasets are large and are not committed or shipped. A module takes
