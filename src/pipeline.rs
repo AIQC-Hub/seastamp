@@ -447,12 +447,26 @@ pub fn run_partitioned(
     // to try.
     let mut todo: Vec<usize> = (0..parts.len()).collect();
     let mut extra = vec![0.0_f64; parts.len()];
-    let (mut passes, mut widened) = (0usize, 0usize);
+    // Partitions that have given up on the antimeridian and taken every
+    // longitude instead. See the retry below for why widening cannot get there.
+    let mut all_lon = vec![false; parts.len()];
+    let (mut passes, mut widened, mut gave_up) = (0usize, 0usize, 0usize);
 
     while !todo.is_empty() {
         let boxes: Vec<BBox> = todo
             .iter()
-            .map(|&i| crate::geo::vector::expand(&parts[i].bbox, extra[i]))
+            .map(|&i| {
+                let b = crate::geo::vector::expand(&parts[i].bbox, extra[i]);
+                if all_lon[i] {
+                    BBox {
+                        min_lon: -180.0,
+                        max_lon: 180.0,
+                        ..b
+                    }
+                } else {
+                    b
+                }
+            })
             .collect();
         let mut retry: Vec<usize> = Vec::new();
         for range in batches(&boxes) {
@@ -467,7 +481,7 @@ pub fn run_partitioned(
             if stampers.len() != group.len() {
                 return Err("internal error: a stamper per partition was not built".into());
             }
-            for (&pi, enr) in group.iter().zip(&stampers) {
+            for ((&pi, enr), (bx, _)) in group.iter().zip(&stampers).zip(&regions) {
                 let p = &parts[pi];
                 let locs: Vec<(f64, f64)> = p.members.iter().map(|&i| r.uniq[i]).collect();
                 for (&i, v) in p.members.iter().zip(stamp_all(enr.as_ref(), &locs)) {
@@ -481,7 +495,32 @@ pub fn run_partitioned(
                     .iter()
                     .map(|&(lo, la)| enr.crop_shortfall(lo, la))
                     .fold(0.0_f64, f64::max);
-                if short > 0.0 && extra[pi] < WIDEN_MAX_DEG {
+                if short <= 0.0 {
+                    continue;
+                }
+                // A lon/lat box has two places it cannot be widened past, and a
+                // partition pressed against either can never reach the data on
+                // the other side by growing: the box is clamped and widening
+                // only stretches it the other way.
+                //
+                //   * the antimeridian, where the far side is a longitude the
+                //     box may not hold;
+                //   * a pole, where going further north comes back down the
+                //     opposite meridian.
+                //
+                // Both are answered by taking every longitude and keeping the
+                // latitude band, which is what `auto` already does for input
+                // that straddles the line. For a polar partition that is a thin
+                // band rather than a global index, so the reason WIDEN_MAX_DEG
+                // exists still holds. It also makes the reach honest: with
+                // every longitude held, neither the meridian edges nor the pole
+                // bounds it, so a sound answer stops being re-cropped.
+                let at_seam = (bx.min_lon <= -180.0) != (bx.max_lon >= 180.0);
+                let at_pole = bx.max_lat >= 90.0 || bx.min_lat <= -90.0;
+                if (at_seam || at_pole) && !all_lon[pi] {
+                    all_lon[pi] = true;
+                    retry.push(pi);
+                } else if extra[pi] < WIDEN_MAX_DEG {
                     let want = if short.is_finite() {
                         extra[pi] + short / DEG_M * WIDEN_SLACK
                     } else {
@@ -490,6 +529,11 @@ pub fn run_partitioned(
                     let floor = (extra[pi] + WIDEN_MIN_STEP_DEG).min(WIDEN_MAX_DEG);
                     extra[pi] = want.max(floor).min(WIDEN_MAX_DEG);
                     retry.push(pi);
+                } else {
+                    // Out of room. The answer stands, but it reached past the
+                    // data behind it, so it is an over-estimate rather than a
+                    // measurement, and saying nothing would ship it as one.
+                    gave_up += 1;
                 }
             }
         }
@@ -505,6 +549,13 @@ pub fn run_partitioned(
     }
     if passes > 1 {
         eprintln!("[seastamp] --partition: reference data read {passes} times.");
+    }
+    if gave_up > 0 {
+        eprintln!(
+            "[seastamp] warning: {gave_up} partition(s) still reached past their reference data \
+             after widening to the {WIDEN_MAX_DEG:.0} degree limit. Those distances are \
+             over-estimates: the nearest feature may lie outside the data that was searched."
+        );
     }
 
     // Only now is it true. A partition that found nothing on the first pass has

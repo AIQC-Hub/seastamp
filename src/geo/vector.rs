@@ -137,17 +137,45 @@ fn rings_bbox(rings: &Rings) -> Option<BBox> {
 /// for a tall box that sound answers were flagged as needing a re-crop, which is
 /// the expensive direction to be wrong in. A small safety factor keeps it a
 /// lower bound. A point outside the box has no reach at all.
+///
+/// Two edges are not edges at all and must not be counted as one:
+///
+/// * A box may have been widened past the ends of the world, where no reference
+///   data can exist. Those degrees are clipped off, since counting them would
+///   over-state the reach and so break the guarantee above.
+/// * A box spanning **every** longitude has no meridian edge to run into, and if
+///   it also reaches a pole it has no edge that way either: crossing the pole
+///   only comes back down the far side, whose data the box already holds. Left
+///   unhandled, a polar or wrapping crop reported almost no reach for a point
+///   near 180 or near the pole, and sound answers were re-cropped forever.
 pub fn crop_reach_m(crop: &BBox, lon: f64, lat: f64) -> f64 {
     if !crop.contains(lon, lat) {
         return 0.0;
     }
     const SAFETY: f64 = 0.95;
     let deg_m = crate::geo::projection::MEAN_RADIUS_M * std::f64::consts::PI / 180.0;
-    let ns = (lat - crop.min_lat).min(crop.max_lat - lat) * deg_m;
-    let ew = (lon - crop.min_lon).min(crop.max_lon - lon)
-        * deg_m
-        * lat.abs().min(89.9).to_radians().cos();
-    ns.min(ew).max(0.0) * SAFETY
+
+    // Widening does not clamp, so a box can claim degrees the world does not have.
+    let all_lon = crop.min_lon <= -180.0 && crop.max_lon >= 180.0;
+    let (min_lon, max_lon) = (crop.min_lon.max(-180.0), crop.max_lon.min(180.0));
+    let (min_lat, max_lat) = (crop.min_lat.max(-90.0), crop.max_lat.min(90.0));
+
+    let north = if all_lon && max_lat >= 90.0 {
+        f64::INFINITY
+    } else {
+        (max_lat - lat) * deg_m
+    };
+    let south = if all_lon && min_lat <= -90.0 {
+        f64::INFINITY
+    } else {
+        (lat - min_lat) * deg_m
+    };
+    let ew = if all_lon {
+        f64::INFINITY
+    } else {
+        (lon - min_lon).min(max_lon - lon) * deg_m * lat.abs().min(89.9).to_radians().cos()
+    };
+    north.min(south).min(ew).max(0.0) * SAFETY
 }
 
 /// Whether a feature's lon/lat bounding box meets a crop box at all. Features

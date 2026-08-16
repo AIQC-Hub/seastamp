@@ -132,10 +132,27 @@ So are the four IHO sea names whose extent crosses the line: the Bering Sea, the
 Chukchi Sea, and the North and South Pacific Oceans. `seastamp regions` flags
 them with `crosses_antimeridian` true, so you know before the run.
 
-Cropping is the part that still suffers: a `(170, 180)` region drops reference
-features lying just across the line, so a coastline a few km east of 180 is
-invisible to a run bounded at 180. `auto` avoids that by keeping every longitude
-when the data wraps, at the cost of a larger reference set to index.
+Cropping is the part that still suffers, for a region you pin by hand: a
+`(170, 180)` region drops reference features lying just across the line, so a
+coastline a few km east of 180 is invisible to a run bounded at 180. `auto`
+avoids that by keeping every longitude when the data wraps, at the cost of a
+larger reference set to index.
+
+`--partition` handles it even when the data does not wrap. A group of points
+sitting on one side of the line has a crop clamped there, and no amount of
+widening can reach the coast on the other side, so such a partition switches to
+every longitude and keeps only its latitude band. The same happens at a pole,
+where the way north comes back down the opposite meridian. That matters most in
+polar work, where the nearest land is often across the line or over the top: a
+point at `(-179, 86)` used to report 1595.58 km against a true 958.68 km. If a
+partition still cannot reach far enough, the run now says so rather than
+presenting an over-estimate as a measurement:
+
+```
+[seastamp] warning: 1 partition(s) still reached past their reference data after
+widening to the 40 degree limit. Those distances are over-estimates: the nearest
+feature may lie outside the data that was searched.
+```
 
 ## Municipalities are Europe only
 

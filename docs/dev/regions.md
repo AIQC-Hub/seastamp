@@ -133,9 +133,47 @@ the box) that sound answers triggered rebuilds and a two-partition run went from
 0.5 s to 107 s; taking the width at the point's own latitude fixed that. There is
 a test pinning the bound against a densely sampled true distance.
 
+Two of a box's four edges are not always edges, and `crop_reach_m` has to know
+which. A box widened past the ends of the world claims degrees where no data can
+exist, so the bounds are clipped to the globe first; without that it over-stated,
+breaking the rule above. A box holding **every** longitude has no meridian edge
+at all, and if it also reaches a pole it has none that way either, since crossing
+a pole only comes back down the far side, which such a box already holds. Reading
+those as edges made a polar or wrapping crop report almost no reach for a point
+near 180, so sound answers were re-cropped until the loop ran out of room.
+
 Widening stops at 40 degrees rather than the globe on purpose: a global crop per
 partition costs a full-world index each and undoes the memory saving partitioning
 exists for.
+
+**A partition against the antimeridian or a pole cannot widen its way out, and
+takes every longitude instead.** A lon/lat box is clamped at both, so widening
+only stretches it the other way, away from the data it needs: past 180 the far
+side is a longitude the box may not hold, and past a pole the way back down is
+the opposite meridian. Such a partition switches to `-180..180` once, keeping its
+latitude band, which is what `auto` already does for input that straddles the
+line. For the polar case that is a thin band rather than a global index, so the
+reason `WIDEN_MAX_DEG` exists still holds. The trigger is a box touching exactly
+one of the two longitude ends, or either pole, and it fires once per partition,
+so the loop still terminates.
+
+The measured failure it fixes: a single point at (-179, 86) with GSHHG `f`
+reported 1595.58 km against a true 958.68 km, a 66% over-estimate, because the
+nearest coast lay across the seam and no widening could reach it. The same run
+now agrees with an uncropped one to the last decimal, as do (-180, 86),
+(179, 86), and (170, -88).
+
+**Handling the pole this way is also what makes a polar run cheap.** Left as an
+edge, the pole bounded the reach of every point near it, so sound answers were
+re-cropped until the loop ran out of room: an Arctic grid took 27 rebuilds and
+45.5 s, and tripped the give-up warning below despite being accurate. Taking
+every longitude makes the reach honest, and the same grid now takes 4 rebuilds
+and 13.5 s with identical distances.
+
+**A partition that runs out of widening now says so.** Reaching `WIDEN_MAX_DEG`
+while still short used to ship the over-estimate silently, since the only warning
+counted null results and these answers are not null, merely wrong. `gave_up`
+counts those partitions and warns.
 
 Measured against every point re-run alone with a global crop and its own
 projection center. A globally spread grid: `auto` 30.54% mean and 974.72% worst,
