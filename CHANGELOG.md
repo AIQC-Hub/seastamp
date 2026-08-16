@@ -4,6 +4,40 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.2] - 2026-08-17
+
+### Fixed
+
+- `--partition` no longer over-estimates the distance to coast for points near
+  the antimeridian at high latitude. A crop box cannot cross 180, so a partition
+  clamped against the line could only widen away from the data it needed, and
+  after exhausting its 40 degree budget it reported whatever shoreline happened
+  to lie on its own side. A single point at (-179, 86) read 1595.58 km against a
+  true 958.68 km, a 66% over-estimate. Such a partition now takes every longitude
+  once, keeping its latitude band, which for a polar partition is a thin band
+  rather than a global index. The same applies at a pole, the other place a box
+  cannot be widened past, since the way north from a point near 90 comes back
+  down the opposite meridian.
+
+- Partitioned runs over polar data are now much cheaper. Treating the pole as a
+  crop edge bounded the reach of every point near it, so answers that were
+  already correct were re-cropped until the loop ran out of room. An Arctic grid
+  of 48 points took 27 rebuilds and 45.5 s; it now takes 4 and 13.5 s, with
+  distances unchanged to the last decimal.
+
+- `crop_reach_m` no longer mis-reads two edges that are not edges. A crop widened
+  past the ends of the world counted degrees where no data can exist, which
+  over-stated the reach and so declared cropped-away answers final, the one
+  direction it must never be wrong in. And a crop holding every longitude has no
+  meridian edge to run into, nor any edge at a pole it reaches, since crossing a
+  pole comes back down the far side that such a crop already holds. Reading those
+  as edges made polar and wrapping crops re-crop answers that were already sound.
+
+- A partition that exhausts its widening budget while its answers still reach
+  past its reference data now warns. Those distances are over-estimates rather
+  than measurements, and the existing warning missed them because it counted only
+  null results, which these are not.
+
 ## [0.16.1] - 2026-08-16
 
 ### Fixed

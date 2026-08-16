@@ -518,3 +518,149 @@ fn a_sufficient_crop_is_not_widened() {
         "a coast well inside the crop must read as final"
     );
 }
+
+/// A crop that keeps every longitude has no meridian edge, and if it reaches a
+/// pole it has no edge that way either: going over the pole comes back down the
+/// far side, whose data the crop already holds. Reporting an edge there made a
+/// polar partition re-crop answers that were already sound.
+#[test]
+fn a_wrapping_crop_has_no_meridian_edge() {
+    use seastamp::geo::vector::crop_reach_m;
+
+    let polar = BBox { min_lon: -180.0, max_lon: 180.0, min_lat: 70.0, max_lat: 90.0 };
+    // Longitude cannot matter in a crop that holds all of it.
+    let at_seam = crop_reach_m(&polar, -179.9, 85.0);
+    let mid = crop_reach_m(&polar, 0.0, 85.0);
+    assert!(
+        (at_seam - mid).abs() < 1.0,
+        "a wrapping crop reaches {at_seam:.0} m at the seam against {mid:.0} m mid-ocean"
+    );
+    // Only the southern edge bounds it: 15 degrees of latitude, less the safety
+    // factor. Well over a thousand km, where the old edge-to-180 reading gave
+    // almost nothing.
+    assert!(
+        (1_500_000.0..1_600_000.0).contains(&at_seam),
+        "expected the southern edge to set the reach, got {at_seam:.0} m"
+    );
+
+    // The same band that does not wrap still has meridian edges, and a point
+    // beside one of them must read as barely covered.
+    let wedge = BBox { min_lon: -180.0, max_lon: -160.0, min_lat: 70.0, max_lat: 90.0 };
+    assert!(
+        crop_reach_m(&wedge, -179.9, 85.0) < 20_000.0,
+        "a non-wrapping wedge must still report its meridian edge"
+    );
+}
+
+/// A partition pressed against the antimeridian cannot widen towards the data
+/// on the far side, because a crop box cannot cross 180. It must take every
+/// longitude instead, or it reports whatever happened to lie on its own side.
+#[test]
+fn a_partition_against_the_antimeridian_takes_every_longitude() {
+    // Points just west of the line at high latitude; the only coast is just
+    // east of it, a short hop away over the seam but a world away by longitude.
+    let pts = [(179.0, 80.0), (179.5, 81.0)];
+    let coast: Vec<Vec<(f64, f64)>> = vec![vec![(-170.0, 78.0), (-170.0, 82.0)]];
+
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out.parquet");
+    let rings = coast.clone();
+    let build = move |regions: &[(BBox, Laea)]| {
+        Ok(regions
+            .iter()
+            .map(|&(bbox, proj)| {
+                Box::new(CoastStamper::from_rings(
+                    rings.clone(),
+                    bbox,
+                    proj,
+                    DistUnit::Km,
+                    "dist_to_coast".into(),
+                )) as Box<dyn Stamper>
+            })
+            .collect())
+    };
+    let outputs = [OutputSpec { name: "dist_to_coast".into(), kind: OutputKind::Float }];
+    run_partitioned(&build, &outputs, frame(&pts), &settings(true), &out, Format::Parquet).unwrap();
+    let got = dists(&read_back(&out));
+
+    for (i, &pt) in pts.iter().enumerate() {
+        let d2 = dir.path().join("ref.parquet");
+        let enr = CoastStamper::from_rings(
+            coast.clone(),
+            GLOBAL,
+            Laea::new(pt.0, pt.1),
+            DistUnit::Km,
+            "dist_to_coast".into(),
+        );
+        run_module(&enr, frame(&[pt]), &settings(false), &d2, Format::Parquet).unwrap();
+        let want = dists(&read_back(&d2))[0];
+        assert!(
+            got[i].is_finite(),
+            "point {pt:?} got no distance: the crop never crossed the antimeridian"
+        );
+        let err = (got[i] - want).abs() / want;
+        assert!(
+            err <= DEFAULT_TOLERANCE,
+            "point {pt:?}: {:.1} km against {want:.1} km uncropped, {:.1}% out",
+            got[i],
+            err * 100.0
+        );
+    }
+}
+
+/// The pole is the other place a lon/lat box cannot be widened past: going
+/// north from a point near 90 comes back down the opposite meridian, which a
+/// narrow box does not hold. Such a partition must take every longitude too,
+/// or the coast just over the pole stays invisible however wide the box grows.
+#[test]
+fn a_partition_against_a_pole_takes_every_longitude() {
+    // Points near the pole on the prime meridian; the only coast is just over
+    // the top, on the 180 meridian, a few hundred km away across the pole.
+    let pts = [(0.0, 88.0), (5.0, 88.5)];
+    let coast: Vec<Vec<(f64, f64)>> = vec![vec![(180.0, 84.0), (180.0, 86.0)]];
+
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out.parquet");
+    let rings = coast.clone();
+    let build = move |regions: &[(BBox, Laea)]| {
+        Ok(regions
+            .iter()
+            .map(|&(bbox, proj)| {
+                Box::new(CoastStamper::from_rings(
+                    rings.clone(),
+                    bbox,
+                    proj,
+                    DistUnit::Km,
+                    "dist_to_coast".into(),
+                )) as Box<dyn Stamper>
+            })
+            .collect())
+    };
+    let outputs = [OutputSpec { name: "dist_to_coast".into(), kind: OutputKind::Float }];
+    run_partitioned(&build, &outputs, frame(&pts), &settings(true), &out, Format::Parquet).unwrap();
+    let got = dists(&read_back(&out));
+
+    for (i, &pt) in pts.iter().enumerate() {
+        let d2 = dir.path().join("ref.parquet");
+        let enr = CoastStamper::from_rings(
+            coast.clone(),
+            GLOBAL,
+            Laea::new(pt.0, pt.1),
+            DistUnit::Km,
+            "dist_to_coast".into(),
+        );
+        run_module(&enr, frame(&[pt]), &settings(false), &d2, Format::Parquet).unwrap();
+        let want = dists(&read_back(&d2))[0];
+        assert!(
+            got[i].is_finite(),
+            "point {pt:?} got no distance: the crop never reached over the pole"
+        );
+        let err = (got[i] - want).abs() / want;
+        assert!(
+            err <= DEFAULT_TOLERANCE,
+            "point {pt:?}: {:.1} km against {want:.1} km uncropped, {:.1}% out",
+            got[i],
+            err * 100.0
+        );
+    }
+}
