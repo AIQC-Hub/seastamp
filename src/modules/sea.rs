@@ -23,16 +23,16 @@ use crate::cli::SeaArgs;
 use crate::config::{resolve, BBox, Settings};
 use crate::geo::vector::{PolygonIndex, Rings, CROP_MARGIN_DEG};
 use crate::geo::Laea;
-use crate::pipeline::{run_module, run_partitioned, Enricher, OutputKind, OutputSpec, Value};
+use crate::pipeline::{run_module, run_partitioned, Stamper, OutputKind, OutputSpec, Value};
 
-pub struct SeaEnricher {
+pub struct SeaStamper {
     index: PolygonIndex<String>,
     column: String,
 }
 
-impl SeaEnricher {
-    /// Build the enricher from named features already in memory. Used by
-    /// [`SeaEnricher::open`] and by tests, so the geometry can be exercised
+impl SeaStamper {
+    /// Build the stamper from named features already in memory. Used by
+    /// [`SeaStamper::open`] and by tests, so the geometry can be exercised
     /// without a data file on disk.
     pub fn from_features(
         feats: Vec<(Rings, String)>,
@@ -40,7 +40,7 @@ impl SeaEnricher {
         proj: Laea,
         column: String,
     ) -> Self {
-        SeaEnricher {
+        SeaStamper {
             index: PolygonIndex::build(feats, region, CROP_MARGIN_DEG, proj),
             column,
         }
@@ -49,10 +49,10 @@ impl SeaEnricher {
     /// Wrap an index built elsewhere, which is how the `--partition` path and
     /// its tests get one per partition out of [`PolygonIndex::build_many`].
     pub fn from_index(index: PolygonIndex<String>, column: String) -> Self {
-        SeaEnricher { index, column }
+        SeaStamper { index, column }
     }
 
-    /// Build one enricher per `(crop box, projection)` from a single read of the
+    /// Build one stamper per `(crop box, projection)` from a single read of the
     /// data file, for `--partition`. See [`PolygonIndex::build_many`] for why the
     /// read is shared and the geometry is not.
     pub fn open_many(
@@ -100,7 +100,7 @@ impl SeaEnricher {
     }
 }
 
-impl Enricher for SeaEnricher {
+impl Stamper for SeaStamper {
     /// Containment needs no projection, but the nearest-boundary fallback for
     /// points inside no polygon is planar, so a far-away center can pick the
     /// wrong feature.
@@ -121,7 +121,7 @@ impl Enricher for SeaEnricher {
         }])
     }
 
-    fn enrich(&self, lon: f64, lat: f64) -> Vec<Value> {
+    fn stamp(&self, lon: f64, lat: f64) -> Vec<Value> {
         Vec::from([Value::Text(self.index.locate(lon, lat).cloned())])
     }
 }
@@ -243,10 +243,10 @@ pub fn run(args: SeaArgs) -> Result<(), Box<dyn Error>> {
         let name_field = args.name_field.clone();
         let column = args.column.clone();
         let build = move |regions: &[(BBox, Laea)]| {
-            let built = SeaEnricher::open_many(&data, &name_field, regions, &column)?;
+            let built = SeaStamper::open_many(&data, &name_field, regions, &column)?;
             Ok(built
                 .into_iter()
-                .map(|e| Box::new(e) as Box<dyn Enricher>)
+                .map(|e| Box::new(e) as Box<dyn Stamper>)
                 .collect())
         };
         let outputs = [OutputSpec {
@@ -262,6 +262,6 @@ pub fn run(args: SeaArgs) -> Result<(), Box<dyn Error>> {
     crate::config::apply_auto_region(&mut s, &pts)?;
 
     let proj = Laea::new(s.proj_lon0, s.proj_lat0);
-    let enr = SeaEnricher::open(&data, &args.name_field, s.bbox, proj, args.column)?;
+    let enr = SeaStamper::open(&data, &args.name_field, s.bbox, proj, args.column)?;
     run_module(&enr, df, &s, &out_path, args.common.out_format)
 }

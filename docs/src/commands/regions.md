@@ -7,7 +7,7 @@ named area in an IHO Sea Areas file.
 seastamp regions [OPTIONS]
 ```
 
-This is the one command that takes no input table. It enriches nothing: it
+This is the one command that takes no input table. It stamps nothing: it
 answers "which seas exist, and where are they", so you can find a region for
 your data. The presets are mostly European; the 101 IHO Sea Areas names that sit
 behind them cover the world.

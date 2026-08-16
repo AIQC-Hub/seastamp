@@ -65,8 +65,8 @@ fn is_gz(fmt: Format) -> bool {
 /// Read a whole table into memory as a [`DataFrame`].
 ///
 /// The full input is read eagerly because the join back onto every row needs it;
-/// the enrichment set itself is only the unique locations. For very large inputs
-/// a streamed two-pass version (like ctddump's converters) is the natural next
+/// the set stamped is only the unique locations. For very large inputs a
+/// streamed two-pass version (like ctddump's converters) is the natural next
 /// step: see the note in CLAUDE.md.
 pub fn read_frame(path: &Path, fmt: Format) -> Result<DataFrame, Box<dyn Error>> {
     let fmt = resolve_format(path, fmt);

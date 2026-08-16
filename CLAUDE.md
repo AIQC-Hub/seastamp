@@ -18,8 +18,8 @@ with sea attributes, one per top-level command:
 | `completions` | nothing: prints a shell completion script | none |
 
 Input and output can be Parquet (default), CSV, TSV, and the gzip variants
-`csv.gz` / `tsv.gz`. Every enrichment module reads the input, reduces it to
-unique locations with rounded coordinates (3 decimals by default), enriches those
+`csv.gz` / `tsv.gz`. Every stamping module reads the input, reduces it to
+unique locations with rounded coordinates (3 decimals by default), stamps those
 in parallel (`depth` excepted), then joins the results back onto every input row.
 `regions` and `completions` take no input table and run no pipeline.
 
@@ -35,9 +35,9 @@ These two cost real debugging to establish. Do not re-litigate either.
 1. **No em dashes in any human-facing text**: `README.md`, `CHANGELOG.md`, docs,
    generated output, help text, and log lines. Use a colon, comma, parentheses,
    a semicolon, or a reworded sentence. (Carried over from `ctddump`.)
-2. **Never enrich `depth` from more than one thread.** A serial HDF5 build cannot
+2. **Never stamp `depth` from more than one thread.** A serial HDF5 build cannot
    be entered from several threads at all, even under a mutex, and it crashes
-   hard. `DepthEnricher` returns `parallel() -> false` for this reason. Read
+   hard. `DepthStamper` returns `parallel() -> false` for this reason. Read
    [docs/dev/depth-hdf5.md](docs/dev/depth-hdf5.md) before touching that module.
 
 Commit and push only when the user asks. Commit messages end with

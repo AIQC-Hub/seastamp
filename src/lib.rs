@@ -9,7 +9,7 @@
 //!   - `nearest`  nearest location in a second table, with its distance
 //!
 //! Every module shares one pipeline (`pipeline::run_module`): read the input,
-//! reduce it to unique rounded locations, enrich those in parallel, then join the
+//! reduce it to unique rounded locations, stamp those in parallel, then join the
 //! results back onto the full table and write it out.
 //!
 //! Two further commands stand outside that pipeline. `regions` takes no points

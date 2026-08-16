@@ -1,6 +1,6 @@
 # Output columns
 
-Each enrichment command appends its columns to a copy of the input and writes the
+Each stamping command appends its columns to a copy of the input and writes the
 result; the input columns are preserved and their order is kept.
 ([`regions`](../commands/regions.md) is not one of these: it has no input table
 and emits its own, documented on its own page.)
@@ -35,7 +35,7 @@ where there is no reading at all.
 ## Clashing columns
 
 If an output column name already exists in the input, the run fails before any
-enrichment, naming the clashing column(s). Pass `--overwrite` to replace such a
+stamping, naming the clashing column(s). Pass `--overwrite` to replace such a
 column in place instead: it keeps its position but takes the output value and
 dtype.
 
@@ -43,6 +43,6 @@ dtype.
 
 By default the output file is written beside the input as
 `<stem>.<command>.<input format>`, so the output format follows the input's
-(a `points.csv.gz` input enriches to `points.coast.csv.gz`). Override the path
+(a `points.csv.gz` input stamps to `points.coast.csv.gz`). Override the path
 with `--output` or the format with `--out-format`. An input with an unrecognized
 extension defaults to Parquet.

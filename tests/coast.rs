@@ -6,7 +6,7 @@
 use seastamp::cli::{DistUnit, Format};
 use seastamp::config::{Settings, BALTIC};
 use seastamp::geo::{haversine_m, Laea};
-use seastamp::modules::coast::CoastEnricher;
+use seastamp::modules::coast::CoastStamper;
 use seastamp::pipeline::run_module;
 use polars::prelude::*;
 
@@ -25,7 +25,7 @@ fn settings() -> Settings {
     }
 }
 
-fn run_lookup(enr: &CoastEnricher, df: DataFrame) -> DataFrame {
+fn run_lookup(enr: &CoastStamper, df: DataFrame) -> DataFrame {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("out.parquet");
     run_module(enr, df, &settings(), &out, Format::Parquet).unwrap();
@@ -42,7 +42,7 @@ fn meridian_coast() -> Vec<Vec<(f64, f64)>> {
 #[test]
 fn on_coast_is_zero_and_offshore_matches_great_circle() {
     let proj = Laea::new(19.5, 59.5);
-    let enr = CoastEnricher::from_rings(
+    let enr = CoastStamper::from_rings(
         meridian_coast(),
         BALTIC,
         proj,
@@ -75,8 +75,8 @@ fn unit_meters_is_km_times_1000() {
     let proj = Laea::new(19.5, 59.5);
     let df = df! { "longitude" => [21.0f64], "latitude" => [59.0f64] }.unwrap();
 
-    let km = CoastEnricher::from_rings(meridian_coast(), BALTIC, proj, DistUnit::Km, "d".into());
-    let m = CoastEnricher::from_rings(meridian_coast(), BALTIC, proj, DistUnit::M, "d".into());
+    let km = CoastStamper::from_rings(meridian_coast(), BALTIC, proj, DistUnit::Km, "d".into());
+    let m = CoastStamper::from_rings(meridian_coast(), BALTIC, proj, DistUnit::M, "d".into());
 
     let dk = run_lookup(&km, df.clone());
     let dm = run_lookup(&m, df);
@@ -91,7 +91,7 @@ fn segments_outside_region_are_cropped() {
     // Only coastline is far outside the Baltic box plus margin, so it is dropped
     // and the R-tree is empty: every lookup is NaN.
     let far = vec![vec![(100.0, 0.0), (100.0, 5.0)]];
-    let enr = CoastEnricher::from_rings(far, BALTIC, proj, DistUnit::Km, "dist_to_coast".into());
+    let enr = CoastStamper::from_rings(far, BALTIC, proj, DistUnit::Km, "dist_to_coast".into());
 
     let df = df! { "longitude" => [20.0f64], "latitude" => [59.0f64] }.unwrap();
     let back = run_lookup(&enr, df);

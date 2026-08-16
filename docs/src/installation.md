@@ -78,7 +78,7 @@ including how to make bash list candidates on the first Tab.
 
 ## Reference data
 
-The datasets each command enriches from (shorelines, bathymetry, sea polygons,
+The datasets each command stamps from (shorelines, bathymetry, sea polygons,
 country and municipality boundaries) are large and are not bundled. Download the
 ones you need with the helper script, described under
 [Reference datasets](./data.md).

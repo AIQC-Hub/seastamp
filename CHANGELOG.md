@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-08-08
+
+### Added
+
+- `scripts/stamp.sh` takes `--partition` and forwards it to the modules that
+  accept it (`coast`, `sea`, `place`). It was previously rejected by the script
+  as an unknown option, so a multi-module run had no way to reach the flag.
+  Passing it together with `--region` is an error before any module runs, and
+  passing it when only `depth` or `nearest` are selected warns rather than
+  silently doing nothing.
+
+### Changed
+
+- The word "enrich" is gone from the source and the documentation, replaced by
+  "stamp" throughout. It was a leftover from the project's former name,
+  `geoenrich`, and sat awkwardly next to a tool called seastamp that already
+  described itself as stamping points with sea attributes. Nothing about running
+  seastamp changes: no command, flag, output column, or log line ever used the
+  word.
+
+  For anyone using the crate as a library, the `pipeline::Enricher` trait is now
+  `pipeline::Stamper`, its `enrich` method is `stamp`, and the five
+  implementations are `CoastStamper`, `DepthStamper`, `SeaStamper`,
+  `PlaceStamper`, and `NearestStamper`.
+
+- `scripts/enrich.sh` is now `scripts/stamp.sh`. The old name is kept as a
+  wrapper that forwards every argument and prints a deprecation notice, so
+  existing invocations keep working; it will be removed in a later release.
+
 ## [0.15.0] - 2026-08-08
 
 ### Fixed

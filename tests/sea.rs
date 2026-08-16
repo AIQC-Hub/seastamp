@@ -6,7 +6,7 @@ use seastamp::cli::Format;
 use seastamp::config::{Settings, BALTIC};
 use seastamp::geo::vector::Rings;
 use seastamp::geo::Laea;
-use seastamp::modules::sea::SeaEnricher;
+use seastamp::modules::sea::SeaStamper;
 use seastamp::pipeline::run_module;
 use polars::prelude::*;
 
@@ -25,7 +25,7 @@ fn settings() -> Settings {
     }
 }
 
-fn run_lookup(enr: &SeaEnricher, df: DataFrame) -> DataFrame {
+fn run_lookup(enr: &SeaStamper, df: DataFrame) -> DataFrame {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("out.parquet");
     run_module(enr, df, &settings(), &out, Format::Parquet).unwrap();
@@ -52,7 +52,7 @@ fn containment_and_nearest_fallback() {
         (boxed(16.0, 57.0, 20.0, 61.0), "West Basin".to_string()),
         (boxed(20.0, 57.0, 24.0, 61.0), "East Basin".to_string()),
     ];
-    let enr = SeaEnricher::from_features(feats, BALTIC, proj, "sea_name".into());
+    let enr = SeaStamper::from_features(feats, BALTIC, proj, "sea_name".into());
 
     let df = df! {
         // in West Basin, in East Basin, in neither (fallback to nearest boundary)
@@ -74,7 +74,7 @@ fn features_outside_region_are_cropped() {
     // The only feature is far outside the Baltic box plus margin, so it is
     // dropped and every lookup comes back null.
     let feats = vec![(boxed(100.0, 0.0, 105.0, 5.0), "Far Sea".to_string())];
-    let enr = SeaEnricher::from_features(feats, BALTIC, proj, "sea_name".into());
+    let enr = SeaStamper::from_features(feats, BALTIC, proj, "sea_name".into());
 
     let df = df! { "longitude" => [20.0f64], "latitude" => [59.0f64] }.unwrap();
     let back = run_lookup(&enr, df);
@@ -101,7 +101,7 @@ fn open_geojson_reads_named_features() {
     .unwrap();
 
     let proj = Laea::new(19.5, 59.5);
-    let enr = SeaEnricher::open(&path, "NAME", BALTIC, proj, "sea_name".into()).unwrap();
+    let enr = SeaStamper::open(&path, "NAME", BALTIC, proj, "sea_name".into()).unwrap();
 
     let df = df! {
         "longitude" => [20.0f64, 12.5],
@@ -129,7 +129,7 @@ fn open_rejects_wrong_name_field() {
     .unwrap();
 
     let proj = Laea::new(19.5, 59.5);
-    let err = SeaEnricher::open(&path, "NOPE", BALTIC, proj, "sea_name".into())
+    let err = SeaStamper::open(&path, "NOPE", BALTIC, proj, "sea_name".into())
         .err()
         .expect("wrong field must fail");
     assert!(err.to_string().contains("NOPE"), "unexpected error: {err}");

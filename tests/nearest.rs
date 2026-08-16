@@ -6,7 +6,7 @@
 use seastamp::cli::{DistUnit, Format};
 use seastamp::config::{Settings, GLOBAL};
 use seastamp::geo::haversine_m;
-use seastamp::modules::nearest::NearestEnricher;
+use seastamp::modules::nearest::NearestStamper;
 use seastamp::pipeline::run_module;
 use polars::prelude::*;
 
@@ -25,7 +25,7 @@ fn settings() -> Settings {
     }
 }
 
-fn run_lookup(enr: &NearestEnricher, df: DataFrame) -> DataFrame {
+fn run_lookup(enr: &NearestStamper, df: DataFrame) -> DataFrame {
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("out.parquet");
     run_module(enr, df, &settings(), &out, Format::Parquet).unwrap();
@@ -45,7 +45,7 @@ fn farms() -> Vec<(f64, f64, Option<String>)> {
 
 #[test]
 fn picks_nearest_reference_and_reports_great_circle_distance() {
-    let enr = NearestEnricher::from_points(
+    let enr = NearestStamper::from_points(
         farms(),
         DistUnit::Km,
         "nearest_name".into(),
@@ -53,7 +53,7 @@ fn picks_nearest_reference_and_reports_great_circle_distance() {
     );
 
     // Helsinki is nearest Stockholm; Melbourne nearest Sydney. Coordinates are
-    // given at 3 decimals, the pipeline's rounding precision, so the enriched
+    // given at 3 decimals, the pipeline's rounding precision, so the stamped
     // point equals what we compute the expected distance from below.
     let df = df! {
         "longitude" => [24.938f64, 144.963],
@@ -78,8 +78,8 @@ fn picks_nearest_reference_and_reports_great_circle_distance() {
 #[test]
 fn unit_meters_is_km_times_1000() {
     let df = df! { "longitude" => [24.9384f64], "latitude" => [60.1699f64] }.unwrap();
-    let km = NearestEnricher::from_points(farms(), DistUnit::Km, "n".into(), "d".into());
-    let m = NearestEnricher::from_points(farms(), DistUnit::M, "n".into(), "d".into());
+    let km = NearestStamper::from_points(farms(), DistUnit::Km, "n".into(), "d".into());
+    let m = NearestStamper::from_points(farms(), DistUnit::M, "n".into(), "d".into());
 
     let dk = run_lookup(&km, df.clone());
     let dm = run_lookup(&m, df);
@@ -90,7 +90,7 @@ fn unit_meters_is_km_times_1000() {
 
 #[test]
 fn empty_reference_set_yields_null_and_nan() {
-    let enr = NearestEnricher::from_points(
+    let enr = NearestStamper::from_points(
         Vec::<(f64, f64, Option<String>)>::new(),
         DistUnit::Km,
         "nearest_name".into(),

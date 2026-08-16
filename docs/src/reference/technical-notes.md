@@ -5,7 +5,7 @@
 Every command implements one small trait (declare the output columns, compute
 their values for one location) and shares the rest: extract `longitude` and
 `latitude` (cast to float, nulls to NaN), round and de-duplicate into unique
-locations with integer-scaled keys (so the join never compares floats), enrich
+locations with integer-scaled keys (so the join never compares floats), stamp
 the unique set in parallel with rayon, expand the results back to one value per
 input row, append the columns, and write. A NaN coordinate gets no key and
 therefore null output.
@@ -116,19 +116,19 @@ and cropping cannot invent geometry.
 ## Memory and streaming
 
 The input is read whole into memory because the join back touches every row; the
-enrichment set itself is only the unique locations, which stays small. For very
-large inputs a streamed two-pass version (collect unique locations, then append
+set stamped is only the unique locations, which stays small. For very large
+inputs a streamed two-pass version (collect unique locations, then append
 columns chunk by chunk) is the natural next step, noted in the source.
 
 ## Threading and HDF5
 
-Enrichment normally spreads the unique locations across rayon workers. `depth` is
+Stamping normally spreads the unique locations across rayon workers. `depth` is
 the exception and runs them on one thread, because it reads through HDF5, which
 is frequently built serial. A serial build is not merely unsafe for overlapping
 calls: it cannot be entered from several threads at all, even under a lock that
 makes the calls strictly sequential. Spreading the reads across workers therefore
 crashed, as a segfault in release builds and an error-stack assertion in debug
-ones. An `Enricher` declares this with `parallel() -> false`.
+ones. A `Stamper` declares this with `parallel() -> false`.
 
 This only bites where HDF5 lacks thread safety, which is why it showed up in the
 prebuilt release binaries (they vendor the C libraries through `static-netcdf`,

@@ -18,12 +18,12 @@ boxes, so you can find a region for the commands above, and **completions**
 prints a shell completion script.
 
 It reads and writes Parquet (default), CSV, TSV, and the gzip variants `csv.gz`
-and `tsv.gz`. Each enrichment command reduces the input to unique rounded
+and `tsv.gz`. Each stamping command reduces the input to unique rounded
 locations, processes those in parallel, and joins the results back onto every
 row, so a file with millions of rows but few distinct positions is cheap to
-enrich.
+stamp.
 
-> **Status:** all five enrichment modules are implemented and tested: `coast`
+> **Status:** all five stamping modules are implemented and tested: `coast`
 > (nearest GSHHG shoreline by projected R-tree lookup), `depth` (GEBCO grid
 > lookup), `sea` (IHO point in polygon with a nearest fallback), `place`
 > (nearest Natural Earth country and GISCO LAU municipality), and `nearest`
@@ -95,7 +95,7 @@ for the details, including how to make bash list candidates on the first Tab.
 seastamp <command> <input> [options]
 ```
 
-The five enrichment commands share these options (`regions` and `completions`
+The five stamping commands share these options (`regions` and `completions`
 take none of them, having no input table):
 
 | Option | Default | Meaning |
@@ -192,17 +192,17 @@ seastamp regions -o regions.parquet
 Run `seastamp <command> --help` for the full interface.
 
 To run several modules over one input and get a single file with all their new
-columns, use `scripts/enrich.sh`, which chains the selected modules and removes
+columns, use `scripts/stamp.sh`, which chains the selected modules and removes
 the intermediate files:
 
 ```bash
-scripts/enrich.sh cores.parquet cores.enriched.parquet \
+scripts/stamp.sh cores.parquet cores.stamped.parquet \
   --coast ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f \
   --depth ./data/gebco/GEBCO_2024_sub_ice.nc \
   --nearest farms.parquet --nearest-name-field farm_name
 ```
 
-Run `scripts/enrich.sh --help` for all options.
+Run `scripts/stamp.sh --help` for all options.
 
 ## Output columns
 

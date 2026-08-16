@@ -3,7 +3,7 @@
 **The region is not only a crop: it is where distances are measured from.**
 `coast` and `place`'s `municipality_dist` are planar in a LAEA centered on the
 region, so a region that does not match the data returns wrong distances rather
-than an error. `Enricher::projection_center` exists so `run_module` can warn past
+than an error. `Stamper::projection_center` exists so `run_module` can warn past
 2% error; `depth` and `nearest` return `None` because neither uses a projection.
 Keep that warning working when touching the pipeline.
 
@@ -18,7 +18,7 @@ settle an auto region on its own (it has no points yet), so it leaves a
 placeholder plus the explicit overrides in `Settings::auto`, and each
 region-using module calls `config::apply_auto_region` after `read_frame` and
 before opening its reference data. That ordering is the whole mechanism: do not
-move the enricher construction above it. `depth` and `nearest` never call it,
+move the stamper construction above it. `depth` and `nearest` never call it,
 having no region.
 
 Auto derives the center with `geo::arc::spherical_center` (3D unit-vector mean)
@@ -104,7 +104,7 @@ Partition crops overlap (each is padded like `auto`'s, about 10 degrees), so
 building them all at once holds several copies of the reference data: a global
 input measured 4.35 globes of crop across 64 partitions. `pipeline::batches`
 therefore groups partitions to `CROP_BUDGET_GLOBES` and the module builds one
-batch per pass. That is what `CoastEnricher::open_many` is for: **one** shapefile
+batch per pass. That is what `CoastStamper::open_many` is for: **one** shapefile
 read fanned out to every crop in the batch. A module that builds per partition
 instead multiplies the dominant cost by the partition count, which for `coast` is
 the 154 MB GSHHG parse.
@@ -120,7 +120,7 @@ partitions that would dominate.
 **The tolerance bounds projection error only.** Cropping is a second, independent
 error: a partition whose nearest feature lies outside its crop would report an
 over-estimate. That is handled by a separate mechanism, not by the tolerance.
-`Enricher::crop_shortfall` reports how far past the cropped data an answer had to
+`Stamper::crop_shortfall` reports how far past the cropped data an answer had to
 reach, `run_partitioned` widens that partition by exactly that much (plus
 `WIDEN_SLACK`) and re-runs it, and the loop repeats until nothing is short or the
 crop hits `WIDEN_MAX_DEG`.
@@ -157,9 +157,9 @@ nulls the finished run did not have. What survives widening is counted by
 `run_partitioned` after the loop, which is the only point at which it is true.
 
 `place` decides its output column set in `run` rather than reading it off a built
-enricher, because `run_partitioned` needs the columns before any enricher exists.
+stamper, because `run_partitioned` needs the columns before any stamper exists.
 It turns only on whether `--municipalities` was given, so the two must be kept in
-step with `PlaceEnricher::outputs`.
+step with `PlaceStamper::outputs`.
 
 ## Longitude extents are arcs, not intervals
 

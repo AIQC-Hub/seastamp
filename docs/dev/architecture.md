@@ -14,20 +14,20 @@ Single-stage `clap` dispatch:
 
 ## Pipeline (`src/pipeline.rs`)
 
-The `Enricher` trait is the entire per-module surface. A module declares its
+The `Stamper` trait is the entire per-module surface. A module declares its
 `outputs()` (column name + `Float`/`Text`/`Bool`) and computes
-`enrich(lon, lat) -> Vec<Value>`. It may also override `parallel() -> false` to
-be enriched on one thread; only `depth` does, for the
+`stamp(lon, lat) -> Vec<Value>`. It may also override `parallel() -> false` to
+be stamped on one thread; only `depth` does, for the
 [HDF5 reason](./depth-hdf5.md).
 
 `run_module` does the rest: extract `lon`/`lat` (cast to f64, nulls to NaN),
 round and de-duplicate into unique locations (integer-scaled keys, so the join
-never compares floats), enrich the unique set with rayon (or sequentially when
+never compares floats), stamp the unique set with rayon (or sequentially when
 the module opts out), expand the results back to one value per input row, hstack
 the new columns, and write. NaN coordinates get no key and therefore null output.
 
 An output column already present in the input is an error (caught before
-enrichment) unless `--overwrite` is set, which replaces it in place, keeping its
+stamping) unless `--overwrite` is set, which replaces it in place, keeping its
 position.
 
 `pipeline::locations` exposes the input's `(lon, lat)` pairs separately, because
@@ -60,9 +60,9 @@ measure). Both exist because longitude wraps and a min/max does not.
 
 ## Modules (`src/modules/`)
 
-`coast`, `depth`, `sea`, `place`, `nearest` each build an `Enricher` from a data
+`coast`, `depth`, `sea`, `place`, `nearest` each build a `Stamper` from a data
 source (a bundled-dataset path, or the `--to` table for `nearest`) and options,
-then call `run_module`. `regions` and `completions` build no enricher at all.
+then call `run_module`. `regions` and `completions` build no stamper at all.
 
 Shared helpers: `default_output` (the `<stem>.<tag>.<ext>` fallback, where
 `<ext>` matches the input format, so the output format defaults to the input's)
@@ -73,8 +73,8 @@ See [Modules](./modules.md) for what each one does.
 ## Streaming (future)
 
 `read_frame` currently loads the whole input to memory because the join touches
-every row; the enrichment set itself is only the unique locations, so it is
-always small. For very large inputs, the ctddump pattern applies: a first pass to
+every row; the set stamped is only the unique locations, so it is always
+small. For very large inputs, the ctddump pattern applies: a first pass to
 collect unique locations, then a second streamed pass that appends columns
 `chunk`-by-`chunk` via a `BatchedWriter`. Note that as a caveat in the module
 docs before implementing it.
