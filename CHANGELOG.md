@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.3] - 2026-08-17
+
+### Fixed
+
+- The prebuilt Linux binaries failed to start on Rocky Linux 8 and other older
+  distributions with `version 'GLIBC_2.xx' not found`, because the release runner
+  (`ubuntu-22.04`, glibc 2.35) set the glibc floor and a glibc-linked binary runs
+  only on that version and newer. The Linux archives are now built with
+  `cargo-zigbuild` targeting glibc 2.17, so they run on RHEL7/CentOS7-era systems
+  and everything newer, Rocky Linux 8 (glibc 2.28) included. A build-time check
+  fails the release if the binary ever needs a symbol above the 2.17 floor again.
+  macOS builds are unchanged.
+
 ## [0.16.2] - 2026-08-17
 
 ### Fixed

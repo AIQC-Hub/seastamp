@@ -9,6 +9,10 @@ bundle HDF5 and netCDF, so they need no system libraries at all: download the
 archive for your platform, unpack it, and run the `seastamp` binary inside. The
 [helper scripts](./helper-scripts.md) ship in the archive alongside it.
 
+The Linux binaries are linked against glibc 2.17, so they run on any distribution
+with glibc 2.17 or newer: RHEL / CentOS 7, Rocky Linux 8, Ubuntu 18.04, Debian 9,
+and everything more recent.
+
 ## From crates.io
 
 ```bash

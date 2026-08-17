@@ -39,7 +39,9 @@ stamp.
 Each release attaches prebuilt archives for Linux and macOS (x86_64 and arm64)
 to its [GitHub release](https://github.com/AIQC-Hub/seastamp/releases/latest).
 They bundle HDF5 and netCDF, so they need no system libraries: download, unpack,
-and run. The helper scripts ship inside the archive.
+and run. The Linux binaries are linked against glibc 2.17, so they run on RHEL /
+CentOS 7, Rocky Linux 8, Ubuntu 18.04, and anything newer. The helper scripts
+ship inside the archive.
 
 ### From crates.io
 
