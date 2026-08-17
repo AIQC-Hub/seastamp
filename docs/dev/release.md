@@ -59,6 +59,16 @@ linked Polars test binaries fit the runner disk).
   cmake) and creates the GitHub release, attaching the archives and
   `SHA256SUMS`, with notes extracted from the matching `CHANGELOG.md` section.
 
+The Linux archives are built with `cargo-zigbuild` targeting glibc 2.17, not
+natively, so the runner's own glibc no longer sets the floor: they run on
+RHEL7/CentOS7 and every newer distribution, Rocky Linux 8 (glibc 2.28) included.
+Building natively on `ubuntu-22.04` pinned the floor at glibc 2.35 and broke
+Rocky 8 outright, which is what this replaced. zig compiles the vendored HDF5 /
+netCDF C sources as well as linking Rust, so `static-netcdf` still works. A
+"Check the glibc floor" step fails the build if a symbol above 2.17 sneaks back
+in, so a run failing there is that guard, not a flake. macOS needs none of this
+and builds natively per target.
+
 Because the workflow creates the release, do not also create it by hand for a
 tagged release. `Cargo.lock` is committed (the workflow uses `--locked`), so bump
 it alongside the version.
