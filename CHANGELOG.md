@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.1] - 2026-11-05
+
+### Fixed
+
+- `scripts/stamp.sh` checks that every data path it is given exists before the
+  first module runs, `--dry-run` included. A mistyped `--depth` path used to
+  surface only when the chain reached `depth`, after `coast` had already run,
+  and `scripts/stamp_data.sh` reported it once per product after minutes of
+  work. Both now fail at once, naming each missing path.
+
+- The examples in the README, the documentation, and the script headers named
+  the GEBCO grid `GEBCO_2024_sub_ice.nc`. `download_data.sh` fetches the
+  `sub_ice_topo` grid, which unpacks as `GEBCO_2024_sub_ice_topo.nc`, so
+  following an example as written failed with "No such file or directory".
+
 ## [0.17.0] - 2026-11-05
 
 ### Added

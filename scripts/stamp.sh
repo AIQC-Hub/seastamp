@@ -57,7 +57,7 @@
 # Example:
 #   scripts/stamp.sh cores.parquet cores.stamped.parquet \
 #     --coast ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f \
-#     --depth ./data/gebco/GEBCO_2024_sub_ice.nc \
+#     --depth ./data/gebco/GEBCO_2024_sub_ice_topo.nc \
 #     --nearest farms.parquet --nearest-name-field farm_name
 
 set -euo pipefail
@@ -248,6 +248,21 @@ main() {
   if [[ ${#modules[@]} -eq 0 ]]; then
     echo "Select at least one module (see --help)." >&2; usage; return 1
   fi
+  # Check every data source now, --dry-run included, so a mistyped path fails
+  # before the first module rather than when its module is reached, possibly
+  # minutes into the chain. stamp_data.sh relies on this in its preflight.
+  local flag path missing=0
+  for flag in coast depth sea countries nearest municipalities; do
+    case "$flag" in
+      coast) path="$COAST" ;; depth) path="$DEPTH" ;; sea) path="$SEA" ;;
+      countries) path="$COUNTRIES" ;; nearest) path="$NEAREST" ;;
+      municipalities) path="$MUNICIPALITIES" ;;
+    esac
+    if [[ -n "$path" && ! -e "$path" ]]; then
+      echo "--$flag: not found: $path" >&2; missing=1
+    fi
+  done
+  [[ "$missing" == 0 ]] || return 1
   # depth reads a grid and nearest works on the sphere, so neither takes
   # --partition. Say so rather than let the flag look like it did something.
   if [[ "$PARTITION" == 1 && -z "$COAST" && -z "$SEA" && -z "$COUNTRIES" ]]; then

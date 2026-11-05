@@ -69,7 +69,7 @@ for when the flag is worth using.
 ```bash
 scripts/stamp.sh cores.parquet cores.stamped.parquet \
   --coast ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f \
-  --depth ./data/gebco/GEBCO_2024_sub_ice.nc \
+  --depth ./data/gebco/GEBCO_2024_sub_ice_topo.nc \
   --nearest farms.parquet --nearest-name-field farm_name
 ```
 
