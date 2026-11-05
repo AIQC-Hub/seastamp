@@ -206,6 +206,18 @@ scripts/stamp.sh cores.parquet cores.stamped.parquet \
 
 Run `scripts/stamp.sh --help` for all options.
 
+To stamp every product of a ctddump pipeline at once, use
+`scripts/stamp_data.sh`. It runs `stamp.sh` on each de-duplicated product of the
+Arctic, Baltic, and Mediterranean seas in parallel, with the same module flags:
+
+```bash
+scripts/stamp_data.sh -i ../ctddump/output/dedup/dedup -o output/stamp \
+  --coast ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f --partition \
+  --depth ./data/gebco/GEBCO_2024_sub_ice.nc
+```
+
+Run `scripts/stamp_data.sh --help` for all options.
+
 ## Output columns
 
 | Command | Appended columns |

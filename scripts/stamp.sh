@@ -84,9 +84,13 @@ DRYRUN=0
 
 # Intermediate files live under TMP, removed on exit unless --keep (never
 # removed in --dry-run, which does not create it). Global so the EXIT trap,
-# which fires after main returns, can still see it.
+# which fires after main returns, can still see it. The `if` (not `&&`) matters:
+# when the script ends without an explicit exit, the trap's last status becomes
+# the script's, so a false test here would turn a successful run into exit 1.
 TMP=""
-cleanup() { [[ -n "$TMP" && "$KEEP" != 1 && "$DRYRUN" != 1 ]] && rm -rf "$TMP"; }
+cleanup() {
+  if [[ -n "$TMP" && "$KEEP" != 1 && "$DRYRUN" != 1 ]]; then rm -rf "$TMP"; fi
+}
 trap cleanup EXIT
 
 # ---- Parse options -------------------------------------------------------

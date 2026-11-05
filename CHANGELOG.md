@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `scripts/stamp_data.sh` runs `stamp.sh` over every ctddump data product of
+  the Arctic, Baltic, and Mediterranean seas (the nine `nrt_*` and `cora_*`
+  stems that ctddump's `dedup_data.sh` writes), one worker per product, all in
+  parallel. It takes the same module flags as `stamp.sh` and forwards them
+  unchanged, checks them once before any worker starts, and tags each worker's
+  log lines with its product. A product whose input is missing is skipped, so
+  the unpublished Baltic GL does not fail the run. `--by-region` and
+  `--sequential` trade speed for memory, since each worker loads its own copy of
+  the reference data.
+
+### Fixed
+
+- `scripts/stamp.sh` exited with status 1 after a successful run that selected
+  one module, or that passed `--keep` or `--dry-run`. The output was written
+  correctly, but a caller checking the exit status (`set -e`, `&&`, a batch
+  runner) saw a failure. Its exit trap ended on a false test, and bash hands
+  that status on as the script's own.
+
 ## [0.16.3] - 2026-08-17
 
 ### Fixed
