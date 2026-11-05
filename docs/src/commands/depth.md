@@ -47,7 +47,7 @@ Beyond the [shared options](../reference/configuration.md):
 ```bash
 # Reading and writing gzipped CSV
 seastamp depth cores.csv.gz \
-  --data ./data/gebco/GEBCO_2024_sub_ice.nc \
+  --data ./data/gebco/GEBCO_2024_sub_ice_topo.nc \
   --positive -o cores.depth.csv.gz
 ```
 

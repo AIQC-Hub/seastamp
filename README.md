@@ -171,7 +171,7 @@ seastamp coast cores.parquet \
   --unit km -o cores.coast.parquet
 
 # Bathymetric depth from a GEBCO grid, reading and writing gzipped CSV
-seastamp depth cores.csv.gz --data ./data/gebco/GEBCO_2024_sub_ice.nc \
+seastamp depth cores.csv.gz --data ./data/gebco/GEBCO_2024_sub_ice_topo.nc \
   -o cores.depth.csv.gz
 
 # Sea name, cropping the reference data to a named IHO sea
@@ -200,7 +200,7 @@ the intermediate files:
 ```bash
 scripts/stamp.sh cores.parquet cores.stamped.parquet \
   --coast ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f \
-  --depth ./data/gebco/GEBCO_2024_sub_ice.nc \
+  --depth ./data/gebco/GEBCO_2024_sub_ice_topo.nc \
   --nearest farms.parquet --nearest-name-field farm_name
 ```
 
@@ -213,7 +213,7 @@ Arctic, Baltic, and Mediterranean seas in parallel, with the same module flags:
 ```bash
 scripts/stamp_data.sh -i ../ctddump/output/dedup/dedup -o output/stamp \
   --coast ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f --partition \
-  --depth ./data/gebco/GEBCO_2024_sub_ice.nc
+  --depth ./data/gebco/GEBCO_2024_sub_ice_topo.nc
 ```
 
 Run `scripts/stamp_data.sh --help` for all options.

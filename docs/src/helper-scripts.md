@@ -38,7 +38,7 @@ intermediate files are removed when the script ends.
 ```bash
 scripts/stamp.sh cores.parquet cores.stamped.parquet \
   --coast ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f \
-  --depth ./data/gebco/GEBCO_2024_sub_ice.nc \
+  --depth ./data/gebco/GEBCO_2024_sub_ice_topo.nc \
   --nearest farms.parquet --nearest-name-field farm_name
 ```
 
@@ -56,7 +56,7 @@ The inputs are the de-duplicated files `dedup_data.sh` writes, one per stem
 ```bash
 scripts/stamp_data.sh -i ../ctddump/output/dedup/dedup -o output/stamp \
   --coast ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f --partition \
-  --depth ./data/gebco/GEBCO_2024_sub_ice.nc
+  --depth ./data/gebco/GEBCO_2024_sub_ice_topo.nc
 ```
 
 - The module flags and their options are the ones `stamp.sh` takes, forwarded

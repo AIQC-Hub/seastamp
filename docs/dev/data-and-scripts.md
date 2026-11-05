@@ -84,8 +84,11 @@ renames a stem, update `stems_for` here too.
   region. An option in neither list is rejected. Add a new `stamp.sh` option to
   one of them.
 - `preflight` runs `stamp.sh --dry-run` on the first input before any worker
-  starts, so `--region` with `--partition`, or no module selected, is reported
-  once instead of nine times.
+  starts, so `--region` with `--partition`, no module selected, or a data path
+  that does not exist is reported once instead of nine times. The path check
+  lives in `stamp.sh` (it runs in `--dry-run` too) and is what makes the last of
+  those reach the preflight; a first real run lost minutes of `coast` work per
+  product to a mistyped GEBCO name before it existed.
 - `tag_lines` puts `[stem]` after the timestamp of each `stamp.sh` line so
   workers running side by side stay readable. It is a `read` loop rather than
   `sed -u`, which BSD sed lacks. `pipefail` carries the exit status through

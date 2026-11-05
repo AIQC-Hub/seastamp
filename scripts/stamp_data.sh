@@ -49,7 +49,7 @@
 # Example:
 #   scripts/stamp_data.sh -i ../ctddump/output/dedup/dedup \
 #     --coast ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f --partition \
-#     --depth ./data/gebco/GEBCO_2024_sub_ice.nc
+#     --depth ./data/gebco/GEBCO_2024_sub_ice_topo.nc
 
 set -euo pipefail
 
