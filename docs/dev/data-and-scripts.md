@@ -60,10 +60,41 @@ and the temp-dir variable are global on purpose: a `local` in `main` is out of
 scope when the EXIT trap fires under `set -u`. The last module writes the final
 output, whose format follows its extension.
 
+The trap body is an `if`, not `[[ ... ]] && rm`. A script that falls off its
+end takes the EXIT trap's last status as its own, so the `&&` form made every
+single-module, `--keep`, or `--dry-run` run exit 1 after succeeding.
+`stamp_data.sh` checks that status, so keep it an `if`.
+
 `scripts/enrich.sh` is the pre-0.16 name, kept as a three-line `exec` wrapper.
 Keep it that thin: `usage()` here reads its own header comment out of `$0`, so
 anything the wrapper prints for `--help` would be the wrapper's own header rather
 than this script's. Delete it once the deprecation has had a release or two.
+
+## scripts/stamp_data.sh
+
+The batch form of `stamp.sh`, modelled on ctddump's `dedup_data.sh`: the same
+region list, `stems_for` table, `show_config` / `confirm`, and
+`--by-region` / `--sequential` dispatch (one background worker per file by
+default). It reads ctddump's final stage, `output/dedup/dedup/<stem>.parquet`,
+and runs the sibling `stamp.sh` once per stem. If ctddump adds a product or
+renames a stem, update `stems_for` here too.
+
+- Option forwarding is explicit. `STAMP_VALUE_OPTS` and `STAMP_FLAG_OPTS` mirror
+  the `stamp.sh` parser; without them an option's value would be read as a
+  region. An option in neither list is rejected. Add a new `stamp.sh` option to
+  one of them.
+- `preflight` runs `stamp.sh --dry-run` on the first input before any worker
+  starts, so `--region` with `--partition`, or no module selected, is reported
+  once instead of nine times.
+- `tag_lines` puts `[stem]` after the timestamp of each `stamp.sh` line so
+  workers running side by side stay readable. It is a `read` loop rather than
+  `sed -u`, which BSD sed lacks. `pipefail` carries the exit status through
+  that pipe.
+- `--threads` defaults to 2, as in ctddump, because nine processes each taking
+  every core would oversubscribe the machine.
+- Running `depth` in several workers is fine: the HDF5 rule (see
+  [depth-hdf5.md](./depth-hdf5.md)) is about threads within one process, and
+  each worker is a separate process opening the grid read-only.
 
 ## scripts/gen_iho_areas.py
 
