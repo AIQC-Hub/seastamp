@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.1] - 2026-11-06
+
+### Changed
+
+- The README is restructured after ctddump's: badges under the title, a short
+  overview and quick start, and the detail moved to the documentation site,
+  which now links the live example report site.
+- CI reports test coverage to Codecov. New end-to-end tests run every command
+  through the command-line parser against small generated reference data,
+  raising line coverage from 73% to 92%. No change to what any command does.
+
 ## [0.18.0] - 2026-11-06
 
 ### Added
