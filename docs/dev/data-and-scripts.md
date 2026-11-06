@@ -29,7 +29,11 @@ paths.
 
 Caveats baked into it:
 
-- The GEBCO grid is multi-GB and resumes an interrupted download.
+- The GEBCO grid is multi-GB and resumes an interrupted download. The zip is
+  saved as `gebco_<year>_sub_ice_topo.zip` to match the `.nc` inside it; up to
+  0.17.1 it was `gebco_<year>_sub_ice.zip`, and `download_gebco` renames such a
+  zip (or its `.part`) in place, since `fetch` decides whether to skip by the
+  file name. Drop that fallback once nobody has the old name.
 - The GISCO LAU bundle nests one zip per projection, and only the EPSG 4326
   (lon/lat) layer is unpacked, since the modules expect lon/lat.
 - The Marine Regions (IHO) download submits the site's statistics form, so it
