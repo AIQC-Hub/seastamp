@@ -16,12 +16,14 @@ with sea attributes, one per top-level command:
 | `nearest` | nearest location in a second table the caller supplies | none |
 | `regions` | nothing: lists sea and ocean bounding boxes | none (baked-in table) |
 | `completions` | nothing: prints a shell completion script | none |
+| `report` | nothing: `stats` summarises a stamped file, `summary` renders that as a page | none |
 
 Input and output can be Parquet (default), CSV, TSV, and the gzip variants
 `csv.gz` / `tsv.gz`. Every stamping module reads the input, reduces it to
 unique locations with rounded coordinates (3 decimals by default), stamps those
 in parallel (`depth` excepted), then joins the results back onto every input row.
-`regions` and `completions` take no input table and run no pipeline.
+`regions`, `completions`, and `report` run no stamping pipeline; `report`
+reads files the others wrote (see [docs/dev/architecture.md](docs/dev/architecture.md)).
 
 It is a sibling to `ctddump` and follows the same house style, but is a separate
 package on purpose: it must stay light and reusable across several downstream
@@ -63,11 +65,11 @@ excluded from the crate, so nothing there ships.
 
 | Read this | When |
 |-----------|------|
-| [docs/dev/architecture.md](docs/dev/architecture.md) | Touching dispatch, `Settings`, `pipeline::run_module`, I/O, or `src/geo/` |
+| [docs/dev/architecture.md](docs/dev/architecture.md) | Touching dispatch, `Settings`, `pipeline::run_module`, I/O, `src/geo/`, or `src/report/` |
 | [docs/dev/modules.md](docs/dev/modules.md) | Changing what a module computes, or adding one |
 | [docs/dev/regions.md](docs/dev/regions.md) | Anything about `--region`, projections, the antimeridian, or the IHO name table |
 | [docs/dev/depth-hdf5.md](docs/dev/depth-hdf5.md) | Any change near `depth`, NetCDF, HDF5, or thread counts |
-| [docs/dev/data-and-scripts.md](docs/dev/data-and-scripts.md) | The reference datasets, or `scripts/*` |
+| [docs/dev/data-and-scripts.md](docs/dev/data-and-scripts.md) | The reference datasets, or `scripts/*` (including the report and summary scripts) |
 | [docs/dev/release.md](docs/dev/release.md) | Branching, tagging, CI, publishing |
 
 The user-facing documentation is the mdBook under `docs/src/`. When behavior

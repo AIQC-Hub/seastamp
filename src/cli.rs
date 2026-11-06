@@ -49,6 +49,150 @@ One rough edge, in bash and zsh only: a region name containing a space completes
 first word, so 'Barentsz Sea' stops at 'Barentsz'. Running that reports the full name back \
 at you, so finish it by hand or quote it. fish completes such names whole.")]
     Completions(CompletionsArgs),
+    /// Summarise stamped files as report tables, and build summary pages from them
+    #[command(after_help = "`report stats` reads one stamped file and writes a table of what \
+the stamping commands added: counts, statistics, and distance or depth bands for the \
+numeric columns, and a count per value for the names. `report summary` turns such a table \
+into a Markdown or HTML page, the form scripts/summary_site.sh builds a web site from.")]
+    Report(ReportArgs),
+}
+
+/// The `report` family. It stamps nothing: `stats` reads a file the stamping
+/// commands wrote, and `summary` reads the table `stats` wrote.
+#[derive(Args, Debug)]
+pub struct ReportArgs {
+    #[command(subcommand)]
+    pub command: ReportCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ReportCommand {
+    /// Summarise the stamped columns of one file as a TSV, text, or JSON table
+    #[command(after_help = "The stamped columns are found by their default names: \
+dist_to_coast, bathymetry, on_land, sea_name, country, municipality, municipality_dist, \
+nearest_name, and nearest_dist. Columns renamed at stamping time are not picked up.\n\n\
+Locations are the unique longitude/latitude pairs after rounding to --decimals, the same \
+reduction the stamping commands make, so each counts once however many rows share it. \
+Statistics are over locations; every count is given for rows as well.\n\n\
+Distances and depths are not labelled with their unit in the file, so give the unit each \
+was stamped in (--coast-unit, --place-unit, --nearest-unit) and say whether depth was \
+stamped with --positive (--depth-positive). These match the stamp.sh option names.")]
+    Stats(ReportStatsArgs),
+    /// Build a Markdown or HTML summary page from a `report stats` table
+    Summary(ReportSummaryArgs),
+}
+
+/// Table format for `report stats`.
+#[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReportFormat {
+    Tsv,
+    Text,
+    Json,
+}
+
+/// Page format for `report summary`.
+#[derive(ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SummaryFormat {
+    Md,
+    Html,
+}
+
+#[derive(Args, Debug)]
+pub struct ReportStatsArgs {
+    /// Stamped file (parquet, csv, tsv, csv.gz, tsv.gz)
+    #[arg(value_hint = ValueHint::FilePath)]
+    pub input: PathBuf,
+
+    /// Report file (default: stdout)
+    #[arg(value_hint = ValueHint::FilePath)]
+    pub dest: Option<PathBuf>,
+
+    /// Report format
+    #[arg(short, long, value_enum, default_value_t = ReportFormat::Tsv)]
+    pub format: ReportFormat,
+
+    /// Input format (default: inferred from the extension, else parquet)
+    #[arg(long, value_enum, default_value_t = Format::Auto)]
+    pub in_format: Format,
+
+    /// Break the report down by this column (for example platform_code): one
+    /// block of rows per distinct value, under a leading column of that name
+    #[arg(long)]
+    pub by: Option<String>,
+
+    /// Longitude column name
+    #[arg(long, default_value = "longitude")]
+    pub lon_col: String,
+
+    /// Latitude column name
+    #[arg(long, default_value = "latitude")]
+    pub lat_col: String,
+
+    /// Decimal places longitude/latitude are rounded to when counting locations
+    /// (match the value the file was stamped with)
+    #[arg(long, default_value_t = 3)]
+    pub decimals: u32,
+
+    /// Unit dist_to_coast was stamped in
+    #[arg(long, value_enum, default_value_t = DistUnit::Km)]
+    pub coast_unit: DistUnit,
+
+    /// Unit municipality_dist was stamped in
+    #[arg(long, value_enum, default_value_t = DistUnit::Km)]
+    pub place_unit: DistUnit,
+
+    /// Unit nearest_dist was stamped in
+    #[arg(long, value_enum, default_value_t = DistUnit::Km)]
+    pub nearest_unit: DistUnit,
+
+    /// bathymetry was stamped with --positive (depth positive below sea level)
+    #[arg(long)]
+    pub depth_positive: bool,
+
+    /// Band edges for the distance columns, in km whatever the column's unit,
+    /// comma separated and increasing
+    #[arg(long, value_delimiter = ',', default_values_t = [1.0, 5.0, 20.0, 100.0])]
+    pub dist_bands: Vec<f64>,
+
+    /// Band edges for depth below sea level, in m, comma separated and
+    /// increasing. Land (elevation at or above sea level) is a band of its own
+    #[arg(long, value_delimiter = ',', default_values_t = [10.0, 50.0, 200.0, 1000.0])]
+    pub depth_bands: Vec<f64>,
+
+    /// Worker threads for reading the file (default: all logical cores)
+    #[arg(short = 't', long)]
+    pub threads: Option<usize>,
+}
+
+#[derive(Args, Debug)]
+pub struct ReportSummaryArgs {
+    /// File stem of the report to summarise: reads <report-dir>/stamp/<stem>.tsv
+    pub stem: String,
+
+    /// Root of the report tree
+    #[arg(long, default_value = "report", value_hint = ValueHint::DirPath)]
+    pub report_dir: PathBuf,
+
+    /// Page format
+    #[arg(short, long, value_enum, default_value_t = SummaryFormat::Md)]
+    pub format: SummaryFormat,
+
+    /// Page title (default: "Summary: <stem>")
+    #[arg(long)]
+    pub title: Option<String>,
+
+    /// A note shown under the title; repeat for several
+    #[arg(long)]
+    pub note: Vec<String>,
+
+    /// Most values listed per name table (sea area, country, ...); the rest are
+    /// summed in one row
+    #[arg(long, default_value_t = 20)]
+    pub top: usize,
+
+    /// Page file (default: stdout)
+    #[arg(short, long, value_hint = ValueHint::FilePath)]
+    pub output: Option<PathBuf>,
 }
 
 /// The `completions` generator. It runs no pipeline and reads no data: it walks

@@ -44,6 +44,7 @@ fn bash_script_lists_every_subcommand() {
         "nearest",
         "regions",
         "completions",
+        "report",
     ] {
         assert!(s.contains(sub), "the bash script never mentions '{sub}'");
     }

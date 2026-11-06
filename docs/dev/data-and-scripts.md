@@ -99,9 +99,28 @@ renames a stem, update `stems_for` here too.
   that pipe.
 - `--threads` defaults to 2, as in ctddump, because nine processes each taking
   every core would oversubscribe the machine.
+- A leading command (`stamp`, `report`, `all`) picks the steps, as in ctddump.
+  `report` reads `<out>/<stem>.<format>` instead of the input, so it skips the
+  preflight and needs no module flags. The report step runs in the same worker,
+  right after the stamp step, and is skipped with it.
+- `REPORT_VALUE_OPTS` / `REPORT_FLAG_OPTS` pick out the forwarded options that
+  also go to `seastamp report stats` (the units, `--depth-positive`, the
+  coordinate columns, `--decimals`), collected in `RPASS`. They work because
+  `report stats` uses the same flag names as `stamp.sh`; keep it that way.
+  `--bin` is read here as well as forwarded, since the report step calls
+  seastamp itself.
 - Running `depth` in several workers is fine: the HDF5 rule (see
   [depth-hdf5.md](./depth-hdf5.md)) is about threads within one process, and
   each worker is a separate process opening the grid read-only.
+
+## scripts/summary_data.sh and scripts/summary_site.sh
+
+Ports of ctddump's scripts of the same names. `summary_data.sh` runs
+`seastamp report summary` per stem with a title and notes from its "Page text"
+section; the titles are ctddump's, so the two sites name products alike.
+`summary_site.sh` is ctddump's almost line for line (only the wording and the
+default title differ), so a fix to one usually applies to the other. It needs
+mdBook and assembles the book in a `mktemp -d` dir.
 
 ## scripts/gen_iho_areas.py
 

@@ -64,6 +64,36 @@ measure). Both exist because longitude wraps and a min/max does not.
 source (a bundled-dataset path, or the `--to` table for `nearest`) and options,
 then call `run_module`. `regions` and `completions` build no stamper at all.
 
+## Reports (`src/report/`)
+
+`report` is the one nested subcommand (`report stats`, `report summary`), after
+ctddump's `report`. It stamps nothing.
+
+- `stats.rs` reads only the needed columns (Parquet projection; the text formats
+  are read whole), finds the stamped columns by their default names (`STAMPED`),
+  and reduces rows to locations with the same double rounding as
+  `pipeline::reduce`, so its location count matches the stamping log's. Keep the
+  two in step. Each location's value comes from its first row. `--by` numbers
+  groups with a Polars `group_by` and keys locations per group, so a position
+  shared by two groups counts in each.
+- The output is a long table (`HEADER`), not ctddump's wide one, because text
+  columns have a row per value and a wide layout cannot hold them. Every item is
+  written even at zero counts. The `(all)` / `(value)` / `(null)` /
+  `(no position)` items are bracketed so they cannot collide with a band label
+  or a real name.
+- `summary.rs` parses that TSV back (it never opens a data file), so the TSV
+  layout is a contract between the two: change `HEADER` or an item name and
+  update both. It refuses a `--by` report, since its percentages need the file
+  totals.
+- `table.rs` renders TSV / text / JSON by hand, as ctddump does, so the cell
+  formatting stays fixed.
+
+Units and the depth sign are not stored in a stamped file, which is why
+`stats` takes `--coast-unit` / `--place-unit` / `--nearest-unit` /
+`--depth-positive`, named as in `stamp.sh` so `stamp_data.sh` can forward the
+same flags to both. A renamed output column (`--column`) is not detected;
+adding detection would mean new flags, so it waits for a user who needs it.
+
 Shared helpers: `default_output` (the `<stem>.<tag>.<ext>` fallback, where
 `<ext>` matches the input format, so the output format defaults to the input's)
 and `shp_polygons` (whole-polygon shapefile read used by `sea` and `place`).
