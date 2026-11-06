@@ -44,6 +44,10 @@ seastamp coast cores.parquet \
 seastamp nearest cores.parquet --to farms.parquet --name-field farm_name
 ```
 
+To see what the full pipeline produces, browse the
+[live example report site](https://aiqc-hub.github.io/seastamp-report-example/index.html),
+built with the [helper scripts](./helper-scripts.md#summary_sitesh).
+
 New here? Start with [Installation](./installation.md), skim the
 [Commands](./commands/coast.md), then see the
 [reference datasets](./data.md) each command needs.
