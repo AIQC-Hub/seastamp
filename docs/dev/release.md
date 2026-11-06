@@ -48,7 +48,10 @@ Two GitHub workflows, both modeled on ctddump.
 
 `ci.yml` builds and runs `cargo test` on push and PR to `main` (installs
 libhdf5-dev / libnetcdf-dev for `depth`, strips debuginfo so the statically
-linked Polars test binaries fit the runner disk).
+linked Polars test binaries fit the runner disk). The tests run instrumented
+by `cargo-llvm-cov` (`show-env`, so the build stays in `target/` for the cache),
+and the LCOV report is uploaded to Codecov with the AIQC-Hub organisation secret
+`CODECOV_TOKEN`. A failed upload does not fail the job.
 
 `publish.yml` fires on a `v*` tag: it re-runs the tests, then in parallel
 

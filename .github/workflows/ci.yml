@@ -40,6 +40,11 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
       # Purpose-built Rust cache rather than a raw actions/cache of `target`.
       # It saves only the *dependency* artifacts: before writing the tarball it
@@ -53,8 +58,25 @@ jobs:
       # The tests need no downloaded reference data: the geometry tests build
       # their features in memory and the depth test builds a small synthetic
       # NetCDF grid, so there is nothing to fetch first.
-      - name: Run tests
-        run: cargo test
+      #
+      # The tests run once, instrumented for coverage. `show-env` exports the
+      # instrumentation flags (appended to the RUSTFLAGS above) and keeps the
+      # build in the usual `target/` rather than `target/llvm-cov-target/`, so
+      # the cache above and the reclaim step below see the layout they expect.
+      - name: Run tests with coverage
+        run: |
+          source <(cargo llvm-cov show-env --sh)
+          cargo test
+          cargo llvm-cov report --lcov --output-path lcov.info
+
+      # The token is the AIQC-Hub organisation secret, shared with the other
+      # repositories that report to Codecov.
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: AIQC-Hub/seastamp
+          files: lcov.info
 
       # Runs before the cache post step (post steps execute after every main
       # step), so the tarball is written with the disk this frees. The test
