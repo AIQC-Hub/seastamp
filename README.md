@@ -1,106 +1,94 @@
 # seastamp
 
-[![Latest release](https://img.shields.io/github/v/release/AIQC-Hub/seastamp?label=release)](https://github.com/AIQC-Hub/seastamp/releases/latest)
+A Rust CLI tool that stamps a table of `longitude`/`latitude` points with sea attributes: distance to coast, depth, sea area, nearest country and municipality, and the nearest of your own locations.
 
-`seastamp` is a Rust command-line tool that stamps a table of points with sea
-attributes. Give it a file with `longitude` and `latitude` columns and it
-appends any of:
+[![crates.io](https://img.shields.io/crates/v/seastamp.svg)](https://crates.io/crates/seastamp)
 
-- **coast**: distance to the nearest shoreline (GSHHG).
-- **depth**: bathymetric depth at the point (GEBCO).
-- **sea**: the sea or ocean name at the point (IHO Sea Areas).
-- **place**: the nearest country and municipality (Natural Earth + GISCO).
-- **nearest**: the nearest location in a second table you supply, and the
-  distance to it (any two sets, for example measurements and fish farms).
+**Links:**
 
-Three further commands stamp nothing: **regions** lists sea and ocean bounding
-boxes, so you can find a region for the commands above, **completions** prints
-a shell completion script, and **report** summarises a stamped file as a report
-table or a summary page.
+- 📦 [crates.io](https://crates.io/crates/seastamp)
+- 📖 [Documentation](https://aiqc-hub.github.io/seastamp/)
+- 🌊 [Live example report site](https://aiqc-hub.github.io/seastamp-report-example/index.html): sample output of the `summary_site.sh` pipeline phase
+
+Five stamping commands each append columns to every input row:
+
+| Command | Adds | Reference data |
+|---------|------|----------------|
+| `coast` | distance to the nearest shoreline | [GSHHG](https://www.soest.hawaii.edu/pwessel/gshhg/) |
+| `depth` | bathymetric depth at the point | [GEBCO](https://www.gebco.net/) grid |
+| `sea` | sea or ocean name | [IHO Sea Areas](https://www.marineregions.org/) |
+| `place` | nearest country and municipality | [Natural Earth](https://www.naturalearthdata.com/) + [GISCO](https://ec.europa.eu/eurostat/web/gisco) |
+| `nearest` | nearest location in a second table you supply, and the distance to it | none (for example measurements and fish farms) |
+
+Three further commands stamp nothing: `regions` lists sea and ocean bounding
+boxes, `completions` prints a shell completion script, and `report` summarises a
+stamped file as a report table or a summary page.
 
 It reads and writes Parquet (default), CSV, TSV, and the gzip variants `csv.gz`
 and `tsv.gz`. Each stamping command reduces the input to unique rounded
 locations, processes those in parallel, and joins the results back onto every
 row, so a file with millions of rows but few distinct positions is cheap to
-stamp.
+stamp. The [documentation site](https://aiqc-hub.github.io/seastamp/) gives the
+algorithm and caveats per command.
 
-> **Status:** all five stamping modules are implemented and tested: `coast`
-> (nearest GSHHG shoreline by projected R-tree lookup), `depth` (GEBCO grid
-> lookup), `sea` (IHO point in polygon with a nearest fallback), `place`
-> (nearest Natural Earth country and GISCO LAU municipality), and `nearest`
-> (nearest point of a caller-supplied table by unit-sphere R-tree), plus
-> `regions` for listing bounding boxes, `completions` for shell completion, and
-> `report` for report tables and summary pages.
-> See the [documentation site](https://aiqc-hub.github.io/seastamp/) for the
-> algorithm and caveats per module.
+## Installation
 
-## Install
+### Download a prebuilt binary (no Rust needed)
 
-### Prebuilt binary
-
-Each release attaches prebuilt archives for Linux and macOS (x86_64 and arm64)
-to its [GitHub release](https://github.com/AIQC-Hub/seastamp/releases/latest).
-They bundle HDF5 and netCDF, so they need no system libraries: download, unpack,
-and run. The Linux binaries are linked against glibc 2.17, so they run on RHEL /
-CentOS 7, Rocky Linux 8, Ubuntu 18.04, and anything newer. The helper scripts
-ship inside the archive.
-
-### From crates.io
+Grab an archive for your platform from the
+[latest release](https://github.com/AIQC-Hub/seastamp/releases/latest). HDF5 and
+netCDF are built into the binary, so nothing else has to be installed:
 
 ```bash
-cargo install seastamp
+VERSION=v0.18.0
+TARGET=x86_64-unknown-linux-gnu    # or aarch64-unknown-linux-gnu,
+                                   # aarch64-apple-darwin, x86_64-apple-darwin
+curl -LO "https://github.com/AIQC-Hub/seastamp/releases/download/$VERSION/seastamp-$VERSION-$TARGET.tar.gz"
+tar -xzf "seastamp-$VERSION-$TARGET.tar.gz"
+cd "seastamp-$VERSION-$TARGET" && ./seastamp --version
 ```
 
-This builds the `depth` command against the system HDF5 / NetCDF libraries, so
-install their dev headers first (see below).
+The Linux binaries are linked against glibc 2.17, so they run on RHEL / CentOS 7,
+Rocky Linux 8, Ubuntu 18.04, and anything newer. The archive also carries the
+helper scripts, so the pipeline works as soon as `seastamp` is on your `PATH`.
 
-### From source
+### Install from crates.io
 
-```bash
-cargo build --release
-# binary at target/release/seastamp
-```
-
-The `depth` command reads GEBCO NetCDF and links the HDF5 / NetCDF C libraries,
-so a source or `cargo install` build needs the dev headers (as with ctddump):
+Needs a Rust toolchain and the HDF5 / netCDF development headers, which the
+`depth` command links against:
 
 ```bash
 # Ubuntu / Debian
 sudo apt-get install libhdf5-dev libnetcdf-dev
-# macOS
+# macOS (Homebrew)
 brew install hdf5
+
+cargo install seastamp
 ```
 
-To build a self-contained binary that vendors those libraries instead (as the
-release archives do), add `--features static-netcdf` (this needs `cmake`).
+The binary lands in `~/.cargo/bin`. To build a self-contained binary that
+vendors those libraries instead (as the release archives do), add
+`--features static-netcdf` (this needs `cmake`). See the
+[installation guide](https://aiqc-hub.github.io/seastamp/installation.html) for
+details.
 
-### Shell completion
+### Build from source
 
-`seastamp completions <shell>` prints a completion script for `bash`, `zsh`,
-`fish`, `elvish`, or `powershell`. Tab then fills in subcommands, flags, their
-enumerated values, and every name `--region` accepts.
+Needs the same system dependencies as above.
 
 ```bash
-# bash
-seastamp completions bash > ~/.local/share/bash-completion/completions/seastamp
-# zsh (with ~/.zfunc on $fpath)
-seastamp completions zsh > ~/.zfunc/_seastamp
-# fish
-seastamp completions fish > ~/.config/fish/completions/seastamp.fish
+git clone https://github.com/AIQC-Hub/seastamp.git
+cd seastamp
+cargo build --release
 ```
 
-Start a new shell afterwards, and regenerate the script when you upgrade. See
-the [completions page](https://aiqc-hub.github.io/seastamp/commands/completions.html)
-for the details, including how to make bash list candidates on the first Tab.
+The binary is placed at `target/release/seastamp`.
 
-## Usage
+## Commands
 
-```bash
-seastamp <command> <input> [options]
-```
+Every command and subcommand supports `-h` / `--help`.
 
-The five stamping commands share these options (`regions` and `completions`
-take none of them, having no input table):
+The five stamping commands share these options:
 
 | Option | Default | Meaning |
 |--------|---------|---------|
@@ -114,11 +102,13 @@ take none of them, having no input table):
 | `-t, --threads <N>` | all cores | Worker threads. `depth` always looks up its grid on one thread |
 | `-c, --config <TOML>` | none | Config file (CLI flags override it) |
 
-The `coast`, `sea`, and `place` commands also take region options. `--region`
-accepts `auto` (the default), a preset (`global`, `baltic`, `norway`, `arctic`,
-`atlantic`, `europe`, `mediterranean`), or any of the 101 IHO Sea Areas names
-such as `"Barentsz Sea"`, baked into the binary so no data file is needed. There
-are also explicit `--min-lon/--max-lon/--min-lat/--max-lat` and
+### Regions and `--partition`
+
+`coast`, `sea`, and `place` also take region options. `--region` accepts `auto`
+(the default), a preset (`global`, `baltic`, `norway`, `arctic`, `atlantic`,
+`europe`, `mediterranean`), or any of the 101 IHO Sea Areas names such as
+`"Barentsz Sea"`, baked into the binary so no data file is needed. There are
+also explicit `--min-lon/--max-lon/--min-lat/--max-lat` and
 `--proj-lon0/--proj-lat0` for the distance projection center.
 
 > **The region is where distances are measured from,** not just a crop. `coast`
@@ -135,8 +125,7 @@ For data spread too widely for any one projection, `--partition` splits it into
 sub-regions and measures each in its own, then joins the results back together.
 The split is driven by accuracy rather than a cell size: seastamp keeps splitting
 until nothing is more than 2% out and reports what it achieved, so data that
-already fits one projection is left as one piece. It works on `coast`, `sea`, and
-`place`.
+already fits one projection is left as one piece.
 
 ```bash
 # two survey areas an ocean apart: coast's mean error goes from 8.4% to 0.2%
@@ -150,50 +139,142 @@ See [auto or partition](https://aiqc-hub.github.io/seastamp/reference/auto-or-pa
 for which to use when, and for the one case where partitioning trades one kind of
 error for another.
 
-`seastamp regions` lists every name `--region` accepts, and with `--data`
-re-derives the boxes from an IHO Sea Areas file:
+### `coast`: distance to the nearest shoreline
 
-```bash
-seastamp regions --name "bering"
+```
+seastamp coast [OPTIONS] --data <GSHHS_DIR> <input>
 ```
 
-The `nearest` command instead takes a second table (`--to`), the set of named
-locations to measure the distance to. Its coordinate columns default to
-`longitude`/`latitude` (`--to-lon-col`/`--to-lat-col`) and the name column to
-`name` (`--name-field`). Distances are great-circle (exact anywhere on the
-globe, so this command has no region or projection center), in kilometers by
-default or meters with `--unit m`.
-
-### Examples
+Nearest GSHHG shoreline by projected R-tree lookup, in kilometers (`--unit km`,
+the default) or meters (`--unit m`). Resolution `f` is recommended.
 
 ```bash
-# Distance to coast, GSHHG resolution 'f', result in kilometers
 seastamp coast cores.parquet \
   --data ./data/gshhg/gshhg-shp-2.3.7/GSHHS_shp/f \
   --unit km -o cores.coast.parquet
+```
 
-# Bathymetric depth from a GEBCO grid, reading and writing gzipped CSV
+### `depth`: bathymetric depth from a GEBCO grid
+
+```
+seastamp depth [OPTIONS] --data <GEBCO.nc> <input>
+```
+
+GEBCO stores elevation (negative below sea level); `--positive` reports depth as
+positive below sea level instead, and `--on-land` adds an `on_land` column.
+
+```bash
+# reading and writing gzipped CSV
 seastamp depth cores.csv.gz --data ./data/gebco/GEBCO_2024_sub_ice_topo.nc \
   -o cores.depth.csv.gz
+```
 
-# Sea name, cropping the reference data to a named IHO sea
+### `sea`: sea or ocean name
+
+```
+seastamp sea [OPTIONS] --data <IHO_SEA_AREAS> <input>
+```
+
+IHO point in polygon, with a nearest-polygon fallback for points just outside
+every area.
+
+```bash
+# cropping the reference data to a named IHO sea
 seastamp sea cores.parquet --region "Norwegian Sea" \
   --data ./data/iho/iho_sea_areas.geojson
+```
 
-# Nearest country and municipality
+### `place`: nearest country and municipality
+
+```
+seastamp place [OPTIONS] --countries <SHP> [--municipalities <SHP>] <input>
+```
+
+Nearest Natural Earth country, and with `--municipalities` the nearest GISCO LAU
+municipality and the distance to it.
+
+```bash
 seastamp place cores.parquet \
   --countries ./data/naturalearth/ne_10m_admin_0_countries.shp \
   --municipalities ./data/gisco/lau.shp
-
-# Nearest fish farm to each measurement, distance in km
-seastamp nearest cores.parquet --to farms.parquet \
-  --name-field farm_name -o cores.nearest.parquet
-
-# Every region name seastamp accepts, saved as a table
-seastamp regions -o regions.parquet
 ```
 
-Run `seastamp <command> --help` for the full interface.
+### `nearest`: nearest location in a table you supply
+
+```
+seastamp nearest [OPTIONS] --to <TABLE> <input>
+```
+
+`--to` is the set of named locations to measure the distance to. Its coordinate
+columns default to `longitude`/`latitude` (`--to-lon-col`/`--to-lat-col`) and
+the name column to `name` (`--name-field`). Distances are great-circle (exact
+anywhere on the globe, so this command has no region or projection center), in
+kilometers by default or meters with `--unit m`.
+
+```bash
+# nearest fish farm to each measurement, distance in km
+seastamp nearest cores.parquet --to farms.parquet \
+  --name-field farm_name -o cores.nearest.parquet
+```
+
+### `regions`: list sea and ocean bounding boxes
+
+```
+seastamp regions [--name <TEXT>] [--data <IHO_SEA_AREAS>] [-o <FILE>]
+```
+
+Lists every name `--region` accepts, and with `--data` re-derives the boxes from
+an IHO Sea Areas file.
+
+```bash
+seastamp regions --name "bering"
+seastamp regions -o regions.parquet     # saved as a table
+```
+
+### `report`: summarise a stamped file
+
+```
+seastamp report stats   [--by COL] [--format tsv|text|json] <stamped file> [dest]
+seastamp report summary [--format md|html] [-o <FILE>] <stem>
+```
+
+`report stats` summarises what a stamped file holds: rows and unique locations,
+and for each stamped column the statistics, distance or depth bands, or the count
+per name, optionally broken down per value of `--by`. `report summary` renders
+that table as a Markdown or HTML page.
+
+```bash
+seastamp report stats cores.stamped.parquet report/stamp/cores.tsv
+seastamp report stats --by platform_code -f text cores.stamped.parquet
+seastamp report summary cores --format html -o cores.html
+```
+
+See the [report page](https://aiqc-hub.github.io/seastamp/commands/report.html)
+for the table layout and the options.
+
+### `completions`: shell tab-completion
+
+```
+seastamp completions <bash|zsh|fish|elvish|powershell>
+```
+
+Prints a completion script to stdout. Tab then fills in subcommands, flags, their
+enumerated values, and every name `--region` accepts.
+
+```bash
+# bash
+seastamp completions bash > ~/.local/share/bash-completion/completions/seastamp
+# zsh (with ~/.zfunc on $fpath)
+seastamp completions zsh > ~/.zfunc/_seastamp
+# fish
+seastamp completions fish > ~/.config/fish/completions/seastamp.fish
+```
+
+Start a new shell afterwards, and regenerate the script when you upgrade. See
+the [completions page](https://aiqc-hub.github.io/seastamp/commands/completions.html)
+for the details, including how to make bash list candidates on the first Tab.
+
+## Helper scripts
 
 To run several modules over one input and get a single file with all their new
 columns, use `scripts/stamp.sh`, which chains the selected modules and removes
@@ -206,11 +287,11 @@ scripts/stamp.sh cores.parquet cores.stamped.parquet \
   --nearest farms.parquet --nearest-name-field farm_name
 ```
 
-Run `scripts/stamp.sh --help` for all options.
-
 To stamp every product of a ctddump pipeline at once, use
 `scripts/stamp_data.sh`. It runs `stamp.sh` on each de-duplicated product of the
-Arctic, Baltic, and Mediterranean seas in parallel, with the same module flags:
+Arctic, Baltic, and Mediterranean seas in parallel, with the same module flags,
+and writes a report per product with `seastamp report stats`, to
+`report/stamp/<stem>.tsv` (`stamp_data.sh report` re-runs only that step):
 
 ```bash
 scripts/stamp_data.sh -i ../ctddump/output/dedup/dedup -o output/stamp \
@@ -218,32 +299,17 @@ scripts/stamp_data.sh -i ../ctddump/output/dedup/dedup -o output/stamp \
   --depth ./data/gebco/GEBCO_2024_sub_ice_topo.nc
 ```
 
-It also writes a report per product with `seastamp report stats`, to
-`report/stamp/<stem>.tsv` (`stamp_data.sh report` re-runs only that step).
-Two more scripts turn the reports into a web site, as ctddump's do:
+Two more scripts turn the reports into a web site, as ctddump's do (see the
+[live example](https://aiqc-hub.github.io/seastamp-report-example/index.html)):
 
 ```bash
 scripts/summary_data.sh -y        # summary/<stem>.md, one page per product
 scripts/summary_site.sh -y        # site/index.html, built with mdBook
 ```
 
-Run `scripts/stamp_data.sh --help` (and so on) for all options.
-
-### Reports
-
-`seastamp report stats` summarises what a stamped file holds: rows and unique
-locations, and for each stamped column the statistics, distance or depth bands,
-or the count per name. `seastamp report summary` renders that table as a
-Markdown or HTML page.
-
-```bash
-seastamp report stats cores.stamped.parquet report/stamp/cores.tsv
-seastamp report stats --by platform_code -f text cores.stamped.parquet
-seastamp report summary cores --format html -o cores.html
-```
-
-See the [report page](https://aiqc-hub.github.io/seastamp/commands/report.html)
-for the table layout and the options.
+Every script takes `--help`. See the
+[helper scripts page](https://aiqc-hub.github.io/seastamp/helper-scripts.html)
+for the whole chain.
 
 ## Output columns
 
@@ -273,14 +339,22 @@ scripts/download_data.sh --mr-name "Your Name" --mr-org "Your Institute" \
   --mr-email you@example.org --mr-country Norway download iho
 ```
 
-Run `scripts/download_data.sh --help` for all options. Sources:
+Run `scripts/download_data.sh --help` for all options, and see the
+[data page](https://aiqc-hub.github.io/seastamp/data.html) for the sources.
 
-- GSHHG shorelines: https://www.soest.hawaii.edu/pwessel/gshhg/
-- GEBCO bathymetry: https://www.gebco.net/
-- IHO Sea Areas: https://www.marineregions.org/
-- Natural Earth: https://www.naturalearthdata.com/
-- Eurostat GISCO LAU: https://ec.europa.eu/eurostat/web/gisco
+## Development
+
+```bash
+# Run all tests
+cargo test
+
+# Run a single test
+cargo test stats_counts_rows_and_locations
+```
+
+Releases are versioned, changelogged, and published following
+[docs/dev/release.md](docs/dev/release.md).
 
 ## License
 
-MIT.
+Licensed under the [MIT License](LICENSE).
