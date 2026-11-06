@@ -1,9 +1,11 @@
 # seastamp
 
-A Rust CLI tool that stamps a table of `longitude`/`latitude` points with sea attributes: distance to coast, depth, sea area, nearest country and municipality, and the nearest of your own locations.
-
 [![crates.io](https://img.shields.io/crates/v/seastamp.svg)](https://crates.io/crates/seastamp)
+[![CI](https://github.com/AIQC-Hub/seastamp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AIQC-Hub/seastamp/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/AIQC-Hub/seastamp/graph/badge.svg)](https://codecov.io/gh/AIQC-Hub/seastamp)
+[![CodeFactor](https://www.codefactor.io/repository/github/aiqc-hub/seastamp/badge)](https://www.codefactor.io/repository/github/aiqc-hub/seastamp)
+
+A Rust CLI tool that stamps a table of `longitude`/`latitude` points with sea attributes: distance to coast, depth, sea area, nearest country and municipality, and the nearest of your own locations.
 
 **Links:**
 
@@ -41,7 +43,7 @@ Grab an archive for your platform from the
 netCDF are built into the binary, so nothing else has to be installed:
 
 ```bash
-VERSION=v0.18.0
+VERSION=v0.18.1
 TARGET=x86_64-unknown-linux-gnu    # or aarch64-unknown-linux-gnu,
                                    # aarch64-apple-darwin, x86_64-apple-darwin
 curl -LO "https://github.com/AIQC-Hub/seastamp/releases/download/$VERSION/seastamp-$VERSION-$TARGET.tar.gz"

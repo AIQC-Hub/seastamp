@@ -75,6 +75,36 @@ fn depth_grid_lookup() {
     many_points_do_not_crash_the_grid_reader();
     positive_flips_sign();
     on_land_flags_positive_elevation();
+    through_the_cli();
+}
+
+/// The `depth` command itself, flags to file: `--positive`, `--on-land`, a
+/// custom column, CSV in and Parquet out, and the missing `--data` refusal.
+/// Called from the one test above, never as its own `#[test]` (HDF5 threads).
+fn through_the_cli() {
+    use clap::Parser;
+    let run = |args: &[&str]| {
+        let mut v = vec!["seastamp", "depth"];
+        v.extend_from_slice(args);
+        seastamp::run(seastamp::cli::Cli::parse_from(v)).map_err(|e| e.to_string())
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let nc = dir.path().join("land.nc");
+    make_grid_with_land(&nc);
+    let input = dir.path().join("in.csv");
+    std::fs::write(&input, "longitude,latitude\n18.0,58.0\n19.0,58.0\n").unwrap();
+    let out = dir.path().join("out.parquet");
+    let (i, n, o) = (input.to_str().unwrap(), nc.to_str().unwrap(), out.to_str().unwrap());
+
+    run(&[i, "--data", n, "--positive", "--on-land", "--column", "depth_m", "-o", o]).unwrap();
+    let back = ParquetReader::new(std::fs::File::open(&out).unwrap()).finish().unwrap();
+    let d = back.column("depth_m").unwrap().f64().unwrap();
+    assert_eq!((d.get(0), d.get(1)), (Some(100.0), Some(-250.0)));
+    let land = back.column("on_land").unwrap().bool().unwrap();
+    assert_eq!((land.get(0), land.get(1)), (Some(false), Some(true)));
+
+    let err = run(&[i]).unwrap_err();
+    assert!(err.contains("--data"), "{err}");
 }
 
 /// A 2x2 grid mixing sea and land: lat = [58, 59], lon = [18, 19], with the
