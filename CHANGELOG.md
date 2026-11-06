@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.2] - 2026-11-06
+
+### Changed
+
+- `download_data.sh` saves the GEBCO archive as
+  `gebco_<year>_sub_ice_topo.zip`, matching the `GEBCO_<year>_sub_ice_topo.nc`
+  grid inside it. An archive (or partial download) under the old name
+  `gebco_<year>_sub_ice.zip` is renamed in place rather than downloaded again.
+
 ## [0.17.1] - 2026-11-05
 
 ### Fixed

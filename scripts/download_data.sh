@@ -325,8 +325,16 @@ download_gshhg() {
 }
 
 download_gebco() {
-  local dir="$DATA/gebco" zip="gebco_${GEBCO_YEAR}_sub_ice.zip"
+  local dir="$DATA/gebco" zip="gebco_${GEBCO_YEAR}_sub_ice_topo.zip"
+  local old="gebco_${GEBCO_YEAR}_sub_ice.zip" ext
   mkdir -p "$dir"
+  # Up to 0.17.1 the zip was saved as $old. Adopt an existing one (or its
+  # partial .part) rather than fetching several GB again.
+  for ext in "" .part; do
+    if [[ -e "$dir/$old$ext" && ! -e "$dir/$zip$ext" ]]; then
+      run mv "$dir/$old$ext" "$dir/$zip$ext"
+    fi
+  done
   log "the GEBCO grid is several GB; an interrupted download resumes on re-run"
   fetch "https://www.bodc.ac.uk/data/open_download/gebco/gebco_${GEBCO_YEAR}_sub_ice_topo/zip/" "$dir/$zip"
   unpack "$dir/$zip" "$dir"
