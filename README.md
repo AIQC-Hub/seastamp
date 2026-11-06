@@ -13,9 +13,10 @@ appends any of:
 - **nearest**: the nearest location in a second table you supply, and the
   distance to it (any two sets, for example measurements and fish farms).
 
-Two further commands take no points: **regions** lists sea and ocean bounding
-boxes, so you can find a region for the commands above, and **completions**
-prints a shell completion script.
+Three further commands stamp nothing: **regions** lists sea and ocean bounding
+boxes, so you can find a region for the commands above, **completions** prints
+a shell completion script, and **report** summarises a stamped file as a report
+table or a summary page.
 
 It reads and writes Parquet (default), CSV, TSV, and the gzip variants `csv.gz`
 and `tsv.gz`. Each stamping command reduces the input to unique rounded
@@ -28,7 +29,8 @@ stamp.
 > lookup), `sea` (IHO point in polygon with a nearest fallback), `place`
 > (nearest Natural Earth country and GISCO LAU municipality), and `nearest`
 > (nearest point of a caller-supplied table by unit-sphere R-tree), plus
-> `regions` for listing bounding boxes and `completions` for shell completion.
+> `regions` for listing bounding boxes, `completions` for shell completion, and
+> `report` for report tables and summary pages.
 > See the [documentation site](https://aiqc-hub.github.io/seastamp/) for the
 > algorithm and caveats per module.
 
@@ -216,7 +218,32 @@ scripts/stamp_data.sh -i ../ctddump/output/dedup/dedup -o output/stamp \
   --depth ./data/gebco/GEBCO_2024_sub_ice_topo.nc
 ```
 
-Run `scripts/stamp_data.sh --help` for all options.
+It also writes a report per product with `seastamp report stats`, to
+`report/stamp/<stem>.tsv` (`stamp_data.sh report` re-runs only that step).
+Two more scripts turn the reports into a web site, as ctddump's do:
+
+```bash
+scripts/summary_data.sh -y        # summary/<stem>.md, one page per product
+scripts/summary_site.sh -y        # site/index.html, built with mdBook
+```
+
+Run `scripts/stamp_data.sh --help` (and so on) for all options.
+
+### Reports
+
+`seastamp report stats` summarises what a stamped file holds: rows and unique
+locations, and for each stamped column the statistics, distance or depth bands,
+or the count per name. `seastamp report summary` renders that table as a
+Markdown or HTML page.
+
+```bash
+seastamp report stats cores.stamped.parquet report/stamp/cores.tsv
+seastamp report stats --by platform_code -f text cores.stamped.parquet
+seastamp report summary cores --format html -o cores.html
+```
+
+See the [report page](https://aiqc-hub.github.io/seastamp/commands/report.html)
+for the table layout and the options.
 
 ## Output columns
 

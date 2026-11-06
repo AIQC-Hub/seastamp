@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-11-06
+
+### Added
+
+- `seastamp report stats` summarises a stamped file as a TSV, text, or JSON
+  table: rows and unique locations, and for each stamped column it finds under
+  its default name, statistics over locations and distance or depth bands
+  (`--dist-bands`, `--depth-bands`), or the count per value for the names.
+  `--by COL` breaks the report down per group. The units and the depth sign are
+  given with the flag names `stamp.sh` uses (`--coast-unit`, `--place-unit`,
+  `--nearest-unit`, `--depth-positive`).
+- `seastamp report summary <stem>` renders `<report-dir>/stamp/<stem>.tsv` as a
+  Markdown or HTML page, with `--title` and `--note`, after ctddump's command of
+  the same name.
+- `scripts/stamp_data.sh` writes a report per product after stamping it, to
+  `<report>/stamp/<stem>.tsv` (`-r, --report`), and takes a leading command:
+  `stamp`, `report` (reports only, from existing outputs), or `all`, the
+  default.
+- `scripts/summary_data.sh` builds a summary page per product, and
+  `scripts/summary_site.sh` renders the pages into a static mdBook web site,
+  both ported from ctddump.
+
 ## [0.17.2] - 2026-11-06
 
 ### Changed

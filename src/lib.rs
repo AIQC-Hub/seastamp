@@ -12,9 +12,10 @@
 //! reduce it to unique rounded locations, stamp those in parallel, then join the
 //! results back onto the full table and write it out.
 //!
-//! Two further commands stand outside that pipeline. `regions` takes no points
+//! Three further commands stand outside that pipeline. `regions` takes no points
 //! and lists sea and ocean bounding boxes, which is where a region for the other
-//! commands comes from, and `completions` writes a shell completion script.
+//! commands comes from, `completions` writes a shell completion script, and
+//! `report` summarises files the modules have already stamped.
 
 use std::error::Error;
 
@@ -24,6 +25,7 @@ pub mod geo;
 pub mod io;
 pub mod modules;
 pub mod pipeline;
+pub mod report;
 
 use cli::{Cli, Commands};
 
@@ -37,5 +39,6 @@ pub fn run(cli: Cli) -> Result<(), Box<dyn Error>> {
         Commands::Nearest(args) => modules::nearest::run(args),
         Commands::Regions(args) => modules::regions::run(args),
         Commands::Completions(args) => modules::completions::run(args),
+        Commands::Report(args) => report::run(args),
     }
 }
