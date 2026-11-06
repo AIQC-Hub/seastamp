@@ -130,6 +130,34 @@ fn by_breaks_the_report_down_per_group() {
 }
 
 #[test]
+fn text_and_json_render_the_same_table() {
+    let dir = tempfile::tempdir().unwrap();
+    let input = stamped(dir.path(), false);
+
+    let txt = dir.path().join("r.txt");
+    run(&["report", "stats", "-f", "text", &input, txt.to_str().unwrap()]);
+    let text = fs::read_to_string(&txt).unwrap();
+    let mut lines = text.lines();
+    let header = lines.next().unwrap();
+    assert!(header.starts_with("column"), "{header}");
+    assert!(lines.next().unwrap().chars().all(|c| c == '-' || c == ' '), "a rule under the header");
+    // Numbers are right-aligned: the mean ends where its header does.
+    let mean_end = header.find("mean").unwrap() + "mean".len();
+    let row = text.lines().find(|l| l.starts_with("dist_to_coast") && l.contains("(value)")).unwrap();
+    assert_eq!(&row[mean_end - "41.375".len()..mean_end], "41.375");
+
+    let json = dir.path().join("r.json");
+    run(&["report", "stats", "--format", "json", &input, json.to_str().unwrap()]);
+    let body = fs::read_to_string(&json).unwrap();
+    assert!(body.starts_with("[\n") && body.ends_with("]\n"));
+    // Text quoted, numbers bare, missing cells null.
+    assert!(body.contains(r#""column": "dist_to_coast""#), "{body}");
+    assert!(body.contains(r#""mean": 41.375"#), "{body}");
+    assert!(body.contains(r#""min": null"#), "{body}");
+    assert!(!body.contains(",\n]"), "no trailing comma");
+}
+
+#[test]
 fn summary_renders_the_report() {
     let dir = tempfile::tempdir().unwrap();
     let input = stamped(dir.path(), false);
