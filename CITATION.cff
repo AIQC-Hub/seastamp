@@ -15,6 +15,7 @@ authors:
 repository-code: "https://github.com/AIQC-Hub/seastamp"
 url: "https://aiqc-hub.github.io/seastamp/"
 license: MIT
+doi: "10.5281/zenodo.24093772"
 keywords:
   - oceanography
   - bathymetry
@@ -22,5 +23,5 @@ keywords:
   - sea areas
   - geospatial
   - Parquet
-version: "0.19.0"
+version: "0.19.1"
 date-released: "2026-11-09"

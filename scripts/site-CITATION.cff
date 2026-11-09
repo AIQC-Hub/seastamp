@@ -17,6 +17,7 @@ authors:
     given-names: "Takaya"
 repository: "https://github.com/AIQC-Hub/seastamp-report-example"
 url: "https://aiqc-hub.github.io/seastamp-report-example/"
+doi: "10.5281/zenodo.24093929"
 license: MIT
 keywords:
   - oceanography
@@ -31,6 +32,7 @@ references:
     authors:
       - family-names: "Saito"
         given-names: "Takaya"
+    doi: "10.5281/zenodo.24093772"
     repository-code: "https://github.com/AIQC-Hub/seastamp"
     url: "https://aiqc-hub.github.io/seastamp/"
     license: MIT
