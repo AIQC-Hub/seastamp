@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2026-11-09
+
+### Added
+
+- `CITATION.cff`, so seastamp can be cited and its GitHub releases archived on
+  Zenodo with the right title, author, licence and version.
+- `scripts/site-CITATION.cff`: the citation of the published example report
+  site (`seastamp-report-example`), listing seastamp, ctddump, the reference
+  datasets (GSHHG, GEBCO, IHO Sea Areas, Natural Earth, GISCO LAU) and the
+  Copernicus Marine products as references. `summary_site.sh --citation FILE`
+  chooses it: every build copies it into the site as `CITATION.cff` by default,
+  `--citation ""` skips it, and a path of your own replaces it. When the file
+  has a top-level `doi:`, the generated site README gets a DOI badge and a
+  Citation section. mdBook empties the site directory on every build, so a
+  citation file or badge added there by hand did not survive a rebuild.
+
 ## [0.18.1] - 2026-11-06
 
 ### Changed

@@ -114,17 +114,36 @@ Renders the Markdown pages into a static web site with
 the same name does: one part per region, a chapter per product, read from
 `summary/` (`-s, --src`) and written to `site/` (`-d, --dest`). Open
 `site/index.html` in a browser, or publish the directory as is: it carries a
-`.nojekyll`, a `LICENSE`, and a `README.md`, so it can be pushed straight to a
-GitHub Pages repository.
+`.nojekyll`, a `LICENSE`, a `CITATION.cff`, and a `README.md`, so it can be
+pushed straight to a GitHub Pages repository.
 
 ```bash
 scripts/summary_site.sh -y                          # site/ from summary/
 scripts/summary_site.sh -y -t "Arctic stamping" arctic
+scripts/summary_site.sh -y --citation my-CITATION.cff   # your own site's citation
 ```
 
 `-t, --title` sets the book title, and `-c, --config` swaps in your own
 `book.toml`. Each chapter is named after its page's title, so titles live in
 `summary_data.sh` alone.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-l, --license FILE` | the `LICENSE` one level above the script | `LICENSE` copied into the built site. Pass `--license ""` to skip it. |
+| `--citation FILE` | the `site-CITATION.cff` beside the script | `CITATION.cff` copied into the built site. If it has a top-level `doi:`, the site README also gets a DOI badge and a Citation section. Pass `--citation ""` to skip it. |
+
+mdBook empties the site directory before every build, so anything added to it by
+hand, such as a `CITATION.cff` or an edited README, is gone after the next run.
+The site's citation therefore lives in this repository, as
+`scripts/site-CITATION.cff`, and every build copies it in as `CITATION.cff` and
+regenerates the README's DOI badge from its `doi:`. It describes the published
+example site (`seastamp-report-example`, and once it is archived on Zenodo, that
+site's DOI), and lists seastamp, its reference datasets, ctddump, and the
+Copernicus Marine products as references, so edit it there when the site's
+metadata changes. If you publish a site of your own, pass your own file with
+`--citation FILE`, or `--citation ""` to leave it out. If the default file is
+missing (for example, only the script was copied), it is skipped without a
+message; a missing `--citation` path is an error.
 
 The whole chain, after ctddump has run:
 
