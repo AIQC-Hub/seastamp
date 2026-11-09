@@ -34,13 +34,49 @@ A release goes out as its own branch, which is what produces the paired
 
 ```bash
 git flow release start 0.10.0
-# stamp the CHANGELOG section, bump the version in Cargo.toml and Cargo.lock
+# stamp the CHANGELOG section, bump the version in Cargo.toml, Cargo.lock,
+# CITATION.cff and the README's VERSION= download line
 git flow release finish 0.10.0    # merges to main, tags vX, merges back to develop
 git push origin main develop --tags
 ```
 
+The version lives in four places, and all four move together:
+
+- `Cargo.toml` and `Cargo.lock` (the workflow builds with `--locked`);
+- `CITATION.cff`: `version: "X.Y.Z"` and `date-released` set to the release
+  date, which Zenodo copies into the archived record;
+- the `VERSION=vX.Y.Z` line of the README's prebuilt-binary snippet.
+
+Grepping for the previous version before finishing catches a missed one, for
+example `grep -n '0\.18\.1' README.md CITATION.cff Cargo.toml`. The CHANGELOG's `## [Unreleased]`
+section becomes `## [X.Y.Z] - YYYY-MM-DD`.
+
 Pushing the tag is what triggers `publish.yml`, so push it only when the release
-is meant to go public.
+is meant to go public. Check <https://www.githubstatus.com/> first: during an
+Actions outage the run fails at once with a "workflow file issue" and no jobs.
+That is not a fault in the workflow, and once Actions recovers
+`gh run rerun <id>` repeats it on the same tag (no new tag is needed).
+
+### Zenodo
+
+The repository is connected to [Zenodo](https://zenodo.org/) through its GitHub
+integration, so every published GitHub Release (created by the tag's publish
+run) is archived and gets its own version DOI, plus one concept DOI that always
+resolves to the latest version. Use the concept DOI wherever a DOI is shown (the
+README badge, `doi:` in `CITATION.cff`), so it never goes stale. Zenodo takes
+the title, authors, licence and version from `CITATION.cff`, which is why every
+release bumps it; without the file it falls back to "AIQC-Hub/seastamp: vX.Y.Z"
+with the organisation as creator, and an archived record never changes
+afterwards. Zenodo archives only releases published after the integration was
+switched on for the repository, so confirm it is on before a release that should
+be archived. After the release, the DOIs can be read from
+`curl -s -A "seastamp-release-check" "https://zenodo.org/api/records?q=seastamp&sort=mostrecent&size=3"`
+(fields `doi` and `conceptdoi`).
+
+The example report site (`AIQC-Hub/seastamp-report-example`) is archived the
+same way from its own GitHub Releases. Its citation is
+`scripts/site-CITATION.cff` in this repository, which `summary_site.sh` copies
+into every build; see [data-and-scripts.md](./data-and-scripts.md).
 
 ## CI and releases
 

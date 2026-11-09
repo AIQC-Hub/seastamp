@@ -120,7 +120,14 @@ Ports of ctddump's scripts of the same names. `summary_data.sh` runs
 section; the titles are ctddump's, so the two sites name products alike.
 `summary_site.sh` is ctddump's almost line for line (only the wording and the
 default title differ), so a fix to one usually applies to the other. It needs
-mdBook and assembles the book in a `mktemp -d` dir.
+mdBook and assembles the book in a `mktemp -d` dir. `--citation` (ctddump
+b3702a3) copies `scripts/site-CITATION.cff`, the example site's own citation
+(`type: dataset`), into every build and turns its top-level `doi:` into the site
+README's DOI badge. mdBook empties the destination on every build, so the site
+repository's `CITATION.cff` and badge can only come from here, never be edited
+there by hand. The references in that file were checked against each source's
+own page (or, for GSHHG, its distribution's `README.TXT` and `LICENSE.TXT`); add
+a DOI or licence only when the source states it.
 
 ## scripts/gen_iho_areas.py
 

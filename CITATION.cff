@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata in this file."
+type: software
+title: "seastamp"
+abstract: >-
+  A command-line tool that stamps a table of longitude/latitude points with sea
+  attributes: distance to the nearest coast (GSHHG), bathymetric depth (GEBCO),
+  the sea or ocean name (IHO Sea Areas), the nearest country and municipality
+  (Natural Earth and GISCO), and the nearest of a second set of locations the
+  user supplies. It reads and writes Parquet, CSV and TSV, stamps only the
+  distinct rounded positions, and summarises stamped files as reports.
+authors:
+  - family-names: "Saito"
+    given-names: "Takaya"
+repository-code: "https://github.com/AIQC-Hub/seastamp"
+url: "https://aiqc-hub.github.io/seastamp/"
+license: MIT
+keywords:
+  - oceanography
+  - bathymetry
+  - coastline
+  - sea areas
+  - geospatial
+  - Parquet
+version: "0.19.0"
+date-released: "2026-11-09"

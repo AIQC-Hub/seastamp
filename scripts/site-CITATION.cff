@@ -1,0 +1,107 @@
+cff-version: 1.2.0
+message: "If you use these reports, please cite them using the metadata in this file, and cite seastamp, its reference datasets and the Copernicus Marine products they summarise (see references)."
+type: dataset
+title: "seastamp example report site: sea attributes of Copernicus Marine CTD profiles"
+abstract: >-
+  A static web site of summary reports, one page per region and product, for
+  the CTD (Conductivity, Temperature, Depth) profiles of the Copernicus Marine
+  in-situ NRT and CORA products in the Arctic, Baltic and Mediterranean seas,
+  after ctddump's cleaning and de-duplication, stamped by seastamp with sea
+  attributes such as the distance to the nearest coast and the bathymetric
+  depth. Each page gives the rows and unique locations of the stamped file and,
+  per stamped attribute, its statistics and bands over locations and rows.
+  Generated with seastamp's summary_site.sh; a point-in-time snapshot of the
+  data at the date of each release.
+authors:
+  - family-names: "Saito"
+    given-names: "Takaya"
+repository: "https://github.com/AIQC-Hub/seastamp-report-example"
+url: "https://aiqc-hub.github.io/seastamp-report-example/"
+license: MIT
+keywords:
+  - oceanography
+  - CTD
+  - Copernicus Marine
+  - bathymetry
+  - distance to coast
+  - seastamp
+references:
+  - type: software
+    title: "seastamp"
+    authors:
+      - family-names: "Saito"
+        given-names: "Takaya"
+    repository-code: "https://github.com/AIQC-Hub/seastamp"
+    url: "https://aiqc-hub.github.io/seastamp/"
+    license: MIT
+  - type: software
+    title: "ctddump"
+    authors:
+      - family-names: "Saito"
+        given-names: "Takaya"
+    doi: "10.5281/zenodo.24091418"
+    repository-code: "https://github.com/AIQC-Hub/ctddump"
+    license: MIT
+  - type: data
+    title: "GSHHG: Global Self-consistent Hierarchical High-resolution Geography"
+    authors:
+      - family-names: "Wessel"
+        given-names: "Paul"
+      - family-names: "Smith"
+        given-names: "Walter H. F."
+    version: "2.3.7"
+    date-released: "2017-06-15"
+    url: "https://www.soest.hawaii.edu/pwessel/gshhg/"
+    license: LGPL-3.0-or-later
+  - type: data
+    title: "GEBCO 2024 Grid"
+    authors:
+      - name: "GEBCO Compilation Group"
+    year: 2024
+    doi: "10.5285/1c44ce99-0a0d-5f4f-e063-7086abc0ea0f"
+    url: "https://www.gebco.net/data-products-gridded-bathymetry-data/gebco2024-grid"
+    notes: "The sub-ice topography version of the grid. The GEBCO Grid is placed in the public domain."
+  - type: data
+    title: "IHO Sea Areas, version 3"
+    authors:
+      - name: "Flanders Marine Institute"
+    year: 2018
+    version: "3"
+    doi: "10.14284/323"
+    url: "https://www.marineregions.org/"
+    license: CC-BY-NC-SA-4.0
+  - type: data
+    title: "Natural Earth Admin 0 - Countries (1:10m)"
+    authors:
+      - name: "Natural Earth"
+    version: "5.1.1"
+    url: "https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-0-countries/"
+    notes: "Natural Earth map data are in the public domain."
+  - type: data
+    title: "Local administrative units (LAU), 2021"
+    authors:
+      - name: "Eurostat, GISCO"
+    year: 2021
+    url: "https://ec.europa.eu/eurostat/web/gisco/geodata/statistical-units/local-administrative-units"
+    copyright: "© EuroGeographics for the administrative boundaries"
+    notes: "Granted for non-commercial use, with the copyright notice above."
+  - type: data
+    title: "Arctic Ocean in-situ near real time observations (INSITU_ARC_PHYBGCWAV_DISCRETE_MYNRT_013_031)"
+    authors:
+      - name: "Copernicus Marine Service"
+    url: "https://data.marine.copernicus.eu/product/INSITU_ARC_PHYBGCWAV_DISCRETE_MYNRT_013_031/description"
+  - type: data
+    title: "Baltic Sea in-situ near real time observations (INSITU_BAL_PHYBGCWAV_DISCRETE_MYNRT_013_032)"
+    authors:
+      - name: "Copernicus Marine Service"
+    url: "https://data.marine.copernicus.eu/product/INSITU_BAL_PHYBGCWAV_DISCRETE_MYNRT_013_032/description"
+  - type: data
+    title: "Mediterranean Sea in-situ near real time observations (INSITU_MED_PHYBGCWAV_DISCRETE_MYNRT_013_035)"
+    authors:
+      - name: "Copernicus Marine Service"
+    url: "https://data.marine.copernicus.eu/product/INSITU_MED_PHYBGCWAV_DISCRETE_MYNRT_013_035/description"
+  - type: data
+    title: "CORA, global ocean in-situ temperature and salinity reanalysis (INSITU_GLO_PHY_TS_DISCRETE_MY_013_001)"
+    authors:
+      - name: "Copernicus Marine Service"
+    url: "https://data.marine.copernicus.eu/product/INSITU_GLO_PHY_TS_DISCRETE_MY_013_001/description"
