@@ -45,7 +45,7 @@ Grab an archive for your platform from the
 netCDF are built into the binary, so nothing else has to be installed:
 
 ```bash
-VERSION=v0.19.0
+VERSION=v0.19.1
 TARGET=x86_64-unknown-linux-gnu    # or aarch64-unknown-linux-gnu,
                                    # aarch64-apple-darwin, x86_64-apple-darwin
 curl -LO "https://github.com/AIQC-Hub/seastamp/releases/download/$VERSION/seastamp-$VERSION-$TARGET.tar.gz"
