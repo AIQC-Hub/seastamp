@@ -15,6 +15,7 @@ authors:
 repository-code: "https://github.com/AIQC-Hub/seastamp"
 url: "https://aiqc-hub.github.io/seastamp/"
 license: MIT
+doi: "10.5281/zenodo.24093772"
 keywords:
   - oceanography
   - bathymetry

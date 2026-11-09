@@ -4,6 +4,7 @@
 [![CI](https://github.com/AIQC-Hub/seastamp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/AIQC-Hub/seastamp/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/AIQC-Hub/seastamp/graph/badge.svg)](https://codecov.io/gh/AIQC-Hub/seastamp)
 [![CodeFactor](https://www.codefactor.io/repository/github/aiqc-hub/seastamp/badge)](https://www.codefactor.io/repository/github/aiqc-hub/seastamp)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24093772.svg)](https://doi.org/10.5281/zenodo.24093772)
 
 A Rust CLI tool that stamps a table of `longitude`/`latitude` points with sea attributes: distance to coast, depth, sea area, nearest country and municipality, and the nearest of your own locations.
 
@@ -11,6 +12,7 @@ A Rust CLI tool that stamps a table of `longitude`/`latitude` points with sea at
 
 - 📦 [crates.io](https://crates.io/crates/seastamp)
 - 📖 [Documentation](https://aiqc-hub.github.io/seastamp/)
+- 🔖 [Zenodo archive](https://doi.org/10.5281/zenodo.24093772): DOI for citing seastamp (always resolves to the latest version; see `CITATION.cff`)
 - 🌊 [Live example report site](https://aiqc-hub.github.io/seastamp-report-example/index.html): sample output of the `summary_site.sh` pipeline phase
 
 Five stamping commands each append columns to every input row:

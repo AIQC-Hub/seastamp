@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- A Zenodo DOI badge and a "Zenodo archive" link in the README, and the concept
+  DOI (`10.5281/zenodo.24093772`, which always resolves to the latest release)
+  in `CITATION.cff` and in the seastamp entry of `scripts/site-CITATION.cff`.
+
 ## [0.19.0] - 2026-11-09
 
 ### Added
